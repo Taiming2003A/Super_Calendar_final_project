@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+  {% if mode == "add" %}
+    <h3>新增項目</h3>
+  {% else %}
+    <h3>編輯項目</h3>
+  {% endif %}
+
+  <form method="post">
+    <label>
+      類型
+      <select name="item_type" required>
+        {% for val, label in ITEM_TYPES %}
+          {% if mode == "edit" %}
+            <option value="{{ val }}" {{ 'selected' if item.item_type == val else '' }}>{{ label }}</option>
+          {% else %}
+            <option value="{{ val }}">{{ label }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>
+      日期
+      {% if mode == "edit" %}
+        <input type="date" name="date" value="{{ item.date.strftime('%Y-%m-%d') }}" required>
+      {% else %}
+        <input type="date" name="date" value="{{ default_date }}" required>
+      {% endif %}
+    </label>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap: .75rem;">
+      <label>
+        開始時間
+        {% if mode == "edit" %}
+          <input type="time" name="start_time" value="{{ item.start_time.strftime('%H:%M') }}" required>
+        {% else %}
+          <input type="time" name="start_time" value="09:00" required>
+        {% endif %}
+      </label>
+
+      <label>
+        結束時間
+        {% if mode == "edit" %}
+          <input type="time" name="end_time" value="{{ item.end_time.strftime('%H:%M') }}" required>
+        {% else %}
+          <input type="time" name="end_time" value="10:00" required>
+        {% endif %}
+      </label>
+    </div>
+
+    <label>
+      標題
+      {% if mode == "edit" %}
+        <input type="text" name="title" value="{{ item.title }}" placeholder="例如：與客戶開會 / 買蛋糕 / 跑步活動" required>
+      {% else %}
+        <input type="text" name="title" placeholder="例如：與客戶開會 / 買蛋糕 / 跑步活動" required>
+      {% endif %}
+    </label>
+
+    <label>
+      內容
+      {% if mode == "edit" %}
+        <textarea name="content" rows="5" placeholder="補充說明（可留空）">{{ item.content }}</textarea>
+      {% else %}
+        <textarea name="content" rows="5" placeholder="補充說明（可留空）"></textarea>
+      {% endif %}
+    </label>
+
+    <div style="display:flex; gap:.5rem;">
+      <button type="submit">{{ "儲存" if mode=="edit" else "新增" }}</button>
+      <a class="secondary" href="{{ url_for('index') }}">取消</a>
+    </div>
+  </form>
+{% endblock %}
