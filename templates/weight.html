@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block content %}
+<h3>體重紀錄</h3>
+
+<section style="max-width:720px;">
+  <form method="post" style="display:flex; gap:.5rem; align-items:end; flex-wrap:wrap;">
+    <label>
+      日期
+      <input type="date" name="date" required value="{{ (rows[-1].date.strftime('%Y-%m-%d') if rows|length>0 else '') }}">
+    </label>
+    <label>
+      體重(kg)
+      <input type="number" step="0.1" name="weight_kg" required placeholder="例如 70.5">
+    </label>
+    <div>
+      <button type="submit">新增</button>
+    </div>
+    <div style="margin-left:auto;">
+      <a class="secondary" href="{{ url_for('index') }}">回首頁</a>
+    </div>
+  </form>
+
+  <div style="margin-top:1rem;">
+    <h4>歷史紀錄</h4>
+    {% if rows|length == 0 %}
+      <p class="muted">尚無體重紀錄</p>
+    {% else %}
+      <table>
+        <thead><tr><th>日期</th><th>體重(kg)</th><th></th></tr></thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td>{{ r.date.strftime('%Y-%m-%d') }}</td>
+              <td>{{ '%.1f'|format(r.weight_kg) }}</td>
+              <td>
+                <form method="post" action="{{ url_for('weight_delete', entry_id=r.id) }}" style="display:inline;">
+                  <button class="secondary outline" onclick="return confirm('刪除此筆體重紀錄？')">刪除</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+
+  <div style="margin-top:1.25rem;">
+    <h4>進步曲線</h4>
+    <canvas id="weightChart" width="800" height="300" style="max-width:100%;"></canvas>
+  </div>
+</section>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // 從後端注入的 arrays (使用 Jinja2 的 tojson)
+  const labels = {{ dates | tojson }};
+  const dataVals = {{ weights | tojson }};
+
+  const ctx = document.getElementById('weightChart').getContext('2d');
+  const weightChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '體重 (kg)',
+        data: dataVals,
+        fill: false,
+        tension: 0.2,
+        borderWidth: 2,
+        pointRadius: 3
+      }]
+    },
+    options: {
+      scales: {
+        x: {
+          display: true,
+          title: { display: true, text: '日期' }
+        },
+        y: {
+          display: true,
+          title: { display: true, text: '體重 (kg)' }
+        }
+      },
+      responsive: true,
+      maintainAspectRatio: false
+    }
+  });
+</script>
+{% endblock %}

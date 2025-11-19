@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
 from datetime import datetime, date, timedelta
 import calendar
+from flask import jsonify
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///calendar.db"
@@ -109,6 +110,16 @@ class ImportantItem(db.Model):
     date = db.Column(db.Date, nullable=False)
     description = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=func.now())
+
+# ===== 新增：體重紀錄表 =====
+class WeightEntry(db.Model):
+    __tablename__ = "weight_entries"
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, index=True)
+    weight_kg = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=func.now())
+
+# 如果你剛加入 model，需要確保 db.create_all() 有執行（你檔案中已有 with app.app_context(): db.create_all()）
 
 with app.app_context():
     db.create_all()
@@ -893,6 +904,53 @@ def progress(exercise_name):
         dates=dates,
         weights=max_weights
     )
+
+@app.route("/weight", methods=["GET", "POST"])
+def weight_page():
+    """
+    顯示體重列表、表單新增，以及顯示進步曲線（以 Chart.js 繪圖）。
+    GET: 顯示頁面
+    POST: 新增一筆體重紀錄 (date, weight_kg) 然後 redirect 回 /weight
+    """
+    if request.method == "POST":
+        # 取值並簡單驗證
+        date_str = (request.form.get("date") or "").strip()
+        weight_str = (request.form.get("weight_kg") or "").strip()
+        try:
+            d = datetime.strptime(date_str, "%Y-%m-%d").date()
+            w = float(weight_str)
+            entry = WeightEntry(date=d, weight_kg=w)
+            db.session.add(entry)
+            db.session.commit()
+            flash("已新增體重紀錄", "success")
+        except Exception as e:
+            flash(f"新增失敗：{e}", "danger")
+        return redirect(url_for("weight_page"))
+
+    # GET: 讀出所有體重紀錄（按日期排序）並傳給 template
+    rows = (
+        WeightEntry.query
+        .order_by(WeightEntry.date.asc())
+        .all()
+    )
+    # template 偏好 arrays of strings/floats
+    dates = [r.date.strftime("%Y-%m-%d") for r in rows]
+    weights = [r.weight_kg for r in rows]
+
+    return render_template(
+        "weight.html",
+        rows=rows,
+        dates=dates,
+        weights=weights,
+    )
+
+@app.route("/weight/delete/<int:entry_id>", methods=["POST"])
+def weight_delete(entry_id):
+    w = WeightEntry.query.get_or_404(entry_id)
+    db.session.delete(w)
+    db.session.commit()
+    flash("已刪除體重紀錄", "info")
+    return redirect(url_for("weight_page"))
 
     
 if __name__ == "__main__":

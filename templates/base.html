@@ -31,6 +31,7 @@
       <a href="{{ url_for('week_view') }}">週檢視</a>
       <a href="{{ url_for('day_view', datestr=(today if today else namespace()).strftime('%Y-%m-%d')) if today else '#' }}">今天</a>
       <a href="{{ url_for('add') }}" role="button">＋ 新增</a>
+      <a href="{{ url_for('weight_page') }}">體重紀錄</a>
     </div>
   </nav>
 
