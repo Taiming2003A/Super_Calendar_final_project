@@ -7,7 +7,7 @@
   <a href="{{ url_for('day_view', datestr=next_day.strftime('%Y-%m-%d')) }}">{{ next_day.strftime('%m/%d') }} →</a>
 </div>
 
-<!-- 當日飲食紀錄（在日期詳情頁顯示） -->
+<!-- 當日飲食紀錄 -->
 <section>
   <h4>當日飲食紀錄</h4>
   <details open>
@@ -15,22 +15,28 @@
     <form method="post" action="{{ url_for('diet_add') }}">
       <input type="hidden" name="date" value="{{ d.strftime('%Y-%m-%d') }}">
       <div style="display:grid; grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr; gap:.5rem;">
-        <label>
-          餐別
+        <label>餐別
           <select name="meal_type" required>
             {% for val, label in MEAL_TYPES %}
               <option value="{{ val }}">{{ label }}</option>
             {% endfor %}
           </select>
         </label>
-        <label>
-          食品名稱
+        <label>食品名稱
           <input name="food_name" placeholder="例如：雞胸便當" required>
         </label>
-        <label>熱量(kcal)<input type="number" step="0.01" name="kcal" value="0"></label>
-        <label>蛋白質(g)<input type="number" step="0.01" name="protein_g" value="0"></label>
-        <label>脂肪(g)<input type="number" step="0.01" name="fat_g" value="0"></label>
-        <label>碳水(g)<input type="number" step="0.01" name="carb_g" value="0"></label>
+        <label>熱量(kcal)
+          <input type="number" step="0.01" name="kcal" value="0">
+        </label>
+        <label>蛋白質(g)
+          <input type="number" step="0.01" name="protein_g" value="0">
+        </label>
+        <label>脂肪(g)
+          <input type="number" step="0.01" name="fat_g" value="0">
+        </label>
+        <label>碳水(g)
+          <input type="number" step="0.01" name="carb_g" value="0">
+        </label>
       </div>
       <div style="margin-top:.5rem;"><button type="submit">新增餐點</button></div>
     </form>
@@ -43,6 +49,87 @@
     <div>脂肪：{{ '%.2f'|format(totals_diet.fat_g) }} g</div>
     <div>碳水：{{ '%.2f'|format(totals_diet.carb_g) }} g</div>
   </article>
+
+  <!-- 只顯示「全域營養目標」的視覺化 -->
+  <section style="margin-top:1rem;">
+    <h5>全域每日營養目標（從首頁設定）</h5>
+
+    {% if nutrition_goal %}
+      <style>
+        .nutri-row { margin-top:.4rem; }
+        .nutri-label { display:flex; justify-content:space-between; font-size:.85rem; margin-bottom:.1rem; }
+        .nutri-bar { position:relative; height:0.6rem; border-radius:999px; background:#e5e7eb; overflow:hidden; }
+        .nutri-fill { position:absolute; inset:0; border-radius:999px; background:#22c55e; }
+        .nutri-diff { font-size:.8rem; color:#4b5563; }
+      </style>
+
+      <!-- 熱量 -->
+      <div class="nutri-row">
+        <div class="nutri-label">
+          <span>熱量</span>
+          <span>{{ '%.0f'|format(totals_diet.kcal) }} / {{ '%.0f'|format(nutrition_goal.kcal_target or 0) }} kcal</span>
+        </div>
+        <div class="nutri-bar">
+          {% if nutrition_percent and nutrition_percent['kcal'] is not none %}
+            <div class="nutri-fill" style="width: {{ '%.0f'|format(nutrition_percent['kcal']) }}%;"></div>
+          {% endif %}
+        </div>
+        {% if nutrition_diff %}
+          <div class="nutri-diff">差值：{{ '%+.0f'|format(nutrition_diff['kcal']) }} kcal</div>
+        {% endif %}
+      </div>
+
+      <!-- 碳水 -->
+      <div class="nutri-row">
+        <div class="nutri-label">
+          <span>碳水</span>
+          <span>{{ '%.1f'|format(totals_diet.carb_g) }} / {{ '%.1f'|format(nutrition_goal.carb_target or 0) }} g</span>
+        </div>
+        <div class="nutri-bar">
+          {% if nutrition_percent and nutrition_percent['carb'] is not none %}
+            <div class="nutri-fill" style="width: {{ '%.0f'|format(nutrition_percent['carb']) }}%;"></div>
+          {% endif %}
+        </div>
+        {% if nutrition_diff %}
+          <div class="nutri-diff">差值：{{ '%+.1f'|format(nutrition_diff['carb']) }} g</div>
+        {% endif %}
+      </div>
+
+      <!-- 蛋白質 -->
+      <div class="nutri-row">
+        <div class="nutri-label">
+          <span>蛋白質</span>
+          <span>{{ '%.1f'|format(totals_diet.protein_g) }} / {{ '%.1f'|format(nutrition_goal.protein_target or 0) }} g</span>
+        </div>
+        <div class="nutri-bar">
+          {% if nutrition_percent and nutrition_percent['protein'] is not none %}
+            <div class="nutri-fill" style="width: {{ '%.0f'|format(nutrition_percent['protein']) }}%;"></div>
+          {% endif %}
+        </div>
+        {% if nutrition_diff %}
+          <div class="nutri-diff">差值：{{ '%+.1f'|format(nutrition_diff['protein']) }} g</div>
+        {% endif %}
+      </div>
+
+      <!-- 脂肪 -->
+      <div class="nutri-row">
+        <div class="nutri-label">
+          <span>脂肪</span>
+          <span>{{ '%.1f'|format(totals_diet.fat_g) }} / {{ '%.1f'|format(nutrition_goal.fat_target or 0) }} g</span>
+        </div>
+        <div class="nutri-bar">
+          {% if nutrition_percent and nutrition_percent['fat'] is not none %}
+            <div class="nutri-fill" style="width: {{ '%.0f'|format(nutrition_percent['fat']) }}%;"></div>
+          {% endif %}
+        </div>
+        {% if nutrition_diff %}
+          <div class="nutri-diff">差值：{{ '%+.1f'|format(nutrition_diff['fat']) }} g</div>
+        {% endif %}
+      </div>
+    {% else %}
+      <p class="muted" style="margin-top:.5rem;">尚未設定全域營養目標，請回首頁設定。</p>
+    {% endif %}
+  </section>
 
   <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:1rem; margin-top:1rem;">
     {% for meal in ['早餐','午餐','晚餐','點心'] %}
@@ -79,7 +166,7 @@
 
 <hr>
 
-<!-- 當日重訓紀錄（在日期詳情頁顯示） -->
+<!-- 當日重訓紀錄（跟之前一樣：PR、上次最大重量、總重量差值） -->
 <section>
   <h4>當日重訓紀錄</h4>
 
@@ -87,43 +174,40 @@
     <summary>新增一組</summary>
     <form method="post" action="{{ url_for('strength_add') }}">
       <input type="hidden" name="date" value="{{ d.strftime('%Y-%m-%d') }}">
-
       <div style="display:grid; grid-template-columns: 1fr 1.5fr 1fr 1fr; gap:.5rem; align-items:end;">
-        <label>
-          部位
+        <label>部位
           <select name="body_part" id="body_part_select" required>
             {% for part, exs in STRENGTH_CATEGORIES.items() %}
               <option value="{{ part }}">{{ part }}</option>
             {% endfor %}
           </select>
         </label>
-
-        <label>
-          動作
-          <select name="exercise_name" id="exercise_select" required>
-            <!-- 由 JS 依部位填入；同一動作可能屬於多個部位 -->
-          </select>
+        <label>動作
+          <select name="exercise_name" id="exercise_select" required></select>
         </label>
-
-        <label>
-          重量(kg)
+        <label>重量(kg)
           <input type="number" step="0.5" name="weight_kg" value="0">
         </label>
-
-        <label>
-          次數
+        <label>次數
           <input type="number" step="1" min="0" name="reps" value="0">
         </label>
       </div>
-
+      <div style="margin-top:.25rem;">
+        <small id="last_max_text" class="muted">上次最大重量：— kg</small>
+      </div>
       <div style="margin-top:.5rem;"><button type="submit">新增一組</button></div>
     </form>
 
+    <script type="application/json" id="cats-json">{{ STRENGTH_CATEGORIES | tojson }}</script>
+    <script type="application/json" id="lastmax-json">{{ last_max_weight | tojson }}</script>
+
     <script>
-      // 將 Python 字典轉為 JS 物件
-      const CATS = {{ STRENGTH_CATEGORIES | tojson }};
+      const CATS = JSON.parse(document.getElementById('cats-json').textContent);
+      const LAST_MAX = JSON.parse(document.getElementById('lastmax-json').textContent || '{}');
+
       const partSel = document.getElementById('body_part_select');
       const exSel = document.getElementById('exercise_select');
+      const lastMaxEl = document.getElementById('last_max_text');
 
       function refillExercises() {
         const part = partSel.value;
@@ -131,12 +215,25 @@
         exSel.innerHTML = '';
         list.forEach(name => {
           const opt = document.createElement('option');
-          opt.value = name; opt.textContent = name;
+          opt.value = name;
+          opt.textContent = name;
           exSel.appendChild(opt);
         });
+        updateLastMax();
       }
+
+      function updateLastMax() {
+        const ex = exSel.value;
+        const w = LAST_MAX[ex];
+        if (w === undefined || w === null) {
+          lastMaxEl.textContent = '上次最大重量：— kg';
+        } else {
+          lastMaxEl.textContent = '上次最大重量：' + Number(w).toFixed(1) + ' kg';
+        }
+      }
+
       partSel.addEventListener('change', refillExercises);
-      // 初次載入
+      exSel.addEventListener('change', updateLastMax);
       refillExercises();
     </script>
   </details>
@@ -144,7 +241,15 @@
   <article style="margin-top:1rem;">
     <header><strong>今日總重量</strong></header>
     <div>總重量：{{ '%.2f'|format(total_weight) }} kg</div>
-    <small class="muted">總重量 = 所有組別 Σ (重量 × 次數)。體重訓練請依需要填入估算重量，或輸入 0（不計入總重量）。</small>
+    {% if prev_total_weight is not none %}
+      <div>
+        與上次訓練日差值：{{ '%+.2f'|format(total_diff_vs_prev) }} kg
+        （上次 {{ prev_total_date.strftime('%Y-%m-%d') }}：{{ '%.2f'|format(prev_total_weight) }} kg）
+      </div>
+    {% else %}
+      <div class="muted">尚無上次訓練日紀錄</div>
+    {% endif %}
+    <small class="muted">總重量 = 所有組別 Σ(重量 × 次數)。</small>
   </article>
 
   {% if strength_by_part|length == 0 %}
@@ -158,13 +263,17 @@
           <table>
             <thead><tr><th>重量(kg)</th><th>次數</th><th>小計(kg)</th><th></th></tr></thead>
             <tbody>
-              {% set subtotal = 0 %}
               {% for s in sets %}
-                {% set subtotal = subtotal + ((s.weight_kg or 0) * (s.reps or 0)) %}
+                {% set subtotal = (s.weight_kg or 0) * (s.reps or 0) %}
                 <tr>
                   <td>{{ '%.2f'|format(s.weight_kg or 0) }}</td>
                   <td>{{ s.reps or 0 }}</td>
-                  <td>{{ '%.2f'|format((s.weight_kg or 0) * (s.reps or 0)) }}</td>
+                  <td>
+                    {{ '%.2f'|format(subtotal) }}
+                    {% if s.id == exercise_best_set_id.get(ex_name) %}
+                      <strong style="color:#ef4444; margin-left:.25rem;">PR</strong>
+                    {% endif %}
+                  </td>
                   <td>
                     <form method="post" action="{{ url_for('strength_delete', set_id=s.id) }}">
                       <button class="secondary outline" onclick="return confirm('刪除此組？')">刪除</button>
@@ -173,13 +282,6 @@
                 </tr>
               {% endfor %}
             </tbody>
-            <tfoot>
-              <tr>
-                <th colspan="2" style="text-align:right;">此動作小計：</th>
-                <th>{{ '%.2f'|format(subtotal) }} kg</th>
-                <th></th>
-              </tr>
-            </tfoot>
           </table>
         </details>
       {% endfor %}
