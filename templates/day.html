@@ -261,11 +261,14 @@
       {% for ex_name, sets in ex_map.items() %}
         <details open style="margin:.25rem 0;">
           <summary>
-            <strong>{{ ex_name }}</strong></summary>
-            <a href="{{ url_for('progress', exercise_name=ex_name) }}" class="secondary" style="margin-left:.5rem;">
+            <strong>{{ exercise_name }}</strong>
+            <a href="{{ url_for('progress', exercise_name=exercise_name) }}"
+           class="secondary" style="margin-left:.5rem;">
              進步曲線
-            </a>
+           </a>
+          </summary>
 
+           
           <table>
             <thead><tr><th>重量(kg)</th><th>次數</th><th>小計(kg)</th><th></th></tr></thead>
             <tbody>

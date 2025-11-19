@@ -873,24 +873,26 @@ def rest_timer():
 
 @app.route("/progress/<exercise_name>")
 def progress(exercise_name):
-    from sqlalchemy import func
-    db = get_db()  # 若你們使用 sqlite3 自寫 connection，改用你們自己的
+    conn = get_db()
+    cursor = conn.cursor()
 
-    # 取出每一天該動作的最大重量
-    rows = db.execute("""
-        SELECT date, MAX(weight_kg) AS max_w
+    # 取每日該動作的最大重量
+    cursor.execute("""
+        SELECT date, MAX(weight_kg) 
         FROM strength
         WHERE exercise_name = ?
         GROUP BY date
         ORDER BY date
-    """, (exercise_name,)).fetchall()
+    """, (exercise_name,))
+    rows = cursor.fetchall()
 
-    dates = [r["date"] for r in rows]
-    weights = [r["max_w"] for r in rows]
+    dates = [r[0] for r in rows]
+    max_weights = [r[1] for r in rows]
 
     return render_template(
         "progress.html",
         exercise_name=exercise_name,
         dates=dates,
-        weights=weights
+        weights=max_weights
     )
+
