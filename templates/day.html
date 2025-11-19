@@ -169,6 +169,7 @@
 <!-- 當日重訓紀錄（跟之前一樣：PR、上次最大重量、總重量差值） -->
 <section>
   <h4>當日重訓紀錄</h4>
+  <a href="{{ url_for('rest_timer') }}" class="secondary" style="margin-bottom:1rem;">休息計時器</a>
 
   <details open>
     <summary>新增一組</summary>
@@ -259,7 +260,12 @@
       <h5 style="margin-top:1rem;">{{ part }}</h5>
       {% for ex_name, sets in ex_map.items() %}
         <details open style="margin:.25rem 0;">
-          <summary><strong>{{ ex_name }}</strong></summary>
+          <summary>
+            <strong>{{ ex_name }}</strong></summary>
+            <a href="{{ url_for('progress', exercise_name=ex_name) }}" class="secondary" style="margin-left:.5rem;">
+             進步曲線
+            </a>
+
           <table>
             <thead><tr><th>重量(kg)</th><th>次數</th><th>小計(kg)</th><th></th></tr></thead>
             <tbody>

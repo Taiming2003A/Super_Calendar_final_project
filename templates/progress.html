@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3>{{ exercise_name }} — 進步曲線</h3>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<canvas id="progressChart" style="max-width:600px;"></canvas>
+
+<script>
+const dates = {{ dates|tojson }};
+const weights = {{ weights|tojson }};
+
+const ctx = document.getElementById('progressChart').getContext('2d');
+
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: dates,
+        datasets: [{
+            label: '最大重量 (kg)',
+            data: weights,
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: false
+            }
+        }
+    }
+});
+</script>
+
+{% endblock %}
