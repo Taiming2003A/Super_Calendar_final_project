@@ -864,9 +864,6 @@ def delete(item_id):
     flash("已刪除項目", "info")
     return redirect(url_for("index", year=y, month=m))
 
-if __name__ == "__main__":
-    app.run(debug=True)
-
 @app.route("/rest_timer")
 def rest_timer():
     return render_template("rest_timer.html")
