@@ -871,6 +871,10 @@ if __name__ == "__main__":
 def rest_timer():
     return render_template("rest_timer.html")
 
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
 @app.route("/progress/<exercise_name>")
 def progress(exercise_name):
     conn = get_db()
