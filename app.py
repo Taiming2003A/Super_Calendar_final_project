@@ -867,7 +867,7 @@ def delete(item_id):
 if __name__ == "__main__":
     app.run(debug=True)
 
-@app.route("/rest")
+@app.route("/rest_timer")
 def rest_timer():
     return render_template("rest_timer.html")
 
