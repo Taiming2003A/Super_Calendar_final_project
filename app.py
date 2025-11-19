@@ -900,3 +900,4 @@ def progress(exercise_name):
         weights=max_weights
     )
 
+print(app.url_map)
