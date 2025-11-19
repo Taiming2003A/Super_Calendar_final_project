@@ -1,37 +1,24 @@
-{% extends "base.html" %}
-{% block content %}
+@app.route("/progress/<exercise_name>")
+def progress(exercise_name):
 
-<h3>{{ exercise_name }} — 進步曲線</h3>
+    # 取得每日最大重量（使用 SQLAlchemy ORM）
+    rows = (
+        db.session.query(
+            Strength.date,
+            db.func.max(Strength.weight_kg)
+        )
+        .filter(Strength.exercise_name == exercise_name)
+        .group_by(Strength.date)
+        .order_by(Strength.date)
+        .all()
+    )
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    dates = [r[0] for r in rows]
+    max_weights = [r[1] for r in rows]
 
-<canvas id="progressChart" style="max-width:600px;"></canvas>
-
-<script>
-const dates = {{ dates | tojson }};
-const weights = {{ weights | tojson }};
-
-const ctx = document.getElementById('progressChart').getContext('2d');
-
-new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: dates,
-        datasets: [{
-            label: '最大重量 (kg)',
-            data: weights,
-            borderWidth: 2
-        }]
-    },
-    options: {
-        responsive: true,
-        scales: {
-            y: {
-                beginAtZero: false
-            }
-        }
-    }
-});
-</script>
-
-{% endblock %}
+    return render_template(
+        "progress.html",
+        exercise_name=exercise_name,
+        dates=dates,
+        weights=max_weights
+    )
