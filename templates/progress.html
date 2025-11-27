@@ -1,24 +1,46 @@
-@app.route("/progress/<exercise_name>")
-def progress(exercise_name):
+{% extends "base.html" %}
 
-    # 取得每日最大重量（使用 SQLAlchemy ORM）
-    rows = (
-        db.session.query(
-            Strength.date,
-            db.func.max(Strength.weight_kg)
-        )
-        .filter(Strength.exercise_name == exercise_name)
-        .group_by(Strength.date)
-        .order_by(Strength.date)
-        .all()
-    )
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center;">
+  <h3>{{ exercise_name }} - 進步趨勢圖</h3>
+  <a href="{{ url_for('index') }}" role="button" class="secondary outline">返回首頁</a>
+</div>
 
-    dates = [r[0] for r in rows]
-    max_weights = [r[1] for r in rows]
+<article>
+  <canvas id="progressChart"></canvas>
+</article>
 
-    return render_template(
-        "progress.html",
-        exercise_name=exercise_name,
-        dates=dates,
-        weights=max_weights
-    )
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  // 接收後端傳來的資料
+  const dates = {{ dates | tojson }};
+  const weights = {{ weights | tojson }};
+
+  const ctx = document.getElementById('progressChart');
+
+  new Chart(ctx, {
+    type: 'line', // 折線圖
+    data: {
+      labels: dates, // X軸：日期
+      datasets: [{
+        label: '最大重量 (kg)',
+        data: weights, // Y軸：重量
+        borderColor: '#e53935', // 線條顏色 (紅色)
+        backgroundColor: 'rgba(229, 57, 53, 0.1)', // 填充顏色
+        tension: 0.1, // 線條平滑度
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: {
+          beginAtZero: false, // 不一定要從 0 開始，這樣進步幅度看起來比較明顯
+          title: { display: true, text: '重量 (kg)' }
+        }
+      }
+    }
+  });
+</script>
+{% endblock %}
