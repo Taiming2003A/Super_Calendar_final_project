@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3>組間休息計時器</h3>
+
+<div style="max-width:300px; margin-top:1rem;">
+  <label>休息秒數
+    <input type="number" id="restSeconds" value="90" min="1" step="1">
+  </label>
+
+  <button id="startBtn" style="margin-top:.5rem;">開始計時</button>
+  <button id="stopBtn" class="secondary" style="margin-top:.5rem;">停止</button>
+
+  <div style="margin-top:1rem; font-size:2rem; text-align:center;">
+    <span id="display">90</span>s
+  </div>
+
+  <audio id="alarmSound">
+    <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+  </audio>
+</div>
+
+<script>
+let timer = null;
+
+const display = document.getElementById('display');
+const restInput = document.getElementById('restSeconds');
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const alarm = document.getElementById('alarmSound');
+
+startBtn.onclick = function () {
+  let sec = Number(restInput.value);
+  display.textContent = sec;
+
+  if (timer) clearInterval(timer);
+
+  timer = setInterval(() => {
+    sec--;
+    display.textContent = sec;
+
+    if (sec <= 0) {
+      clearInterval(timer);
+      timer = null;
+      display.textContent = "0";
+      alarm.play();  // 倒數結束播放聲音
+    }
+  }, 1000);
+};
+
+stopBtn.onclick = function () {
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+};
+</script>
+
+{% endblock %}

@@ -7,7 +7,6 @@
   <a href="{{ url_for('day_view', datestr=next_day.strftime('%Y-%m-%d')) }}">{{ next_day.strftime('%m/%d') }} →</a>
 </div>
 
-<!-- 當日飲食紀錄 -->
 <section>
   <h4>當日飲食紀錄</h4>
   <details open>
@@ -56,7 +55,6 @@
     <div>碳水：{{ '%.2f'|format(totals_diet.carb_g) }} g</div>
   </article>
 
-  <!-- 只顯示「全域營養目標」的視覺化 -->
   <section style="margin-top:1rem;">
     <h5>全域每日營養目標（從首頁設定）</h5>
 
@@ -69,7 +67,6 @@
         .nutri-diff { font-size:.8rem; color:#4b5563; }
       </style>
 
-      <!-- 熱量 -->
       <div class="nutri-row">
         <div class="nutri-label">
           <span>熱量</span>
@@ -85,7 +82,6 @@
         {% endif %}
       </div>
 
-      <!-- 碳水 -->
       <div class="nutri-row">
         <div class="nutri-label">
           <span>碳水</span>
@@ -101,7 +97,6 @@
         {% endif %}
       </div>
 
-      <!-- 蛋白質 -->
       <div class="nutri-row">
         <div class="nutri-label">
           <span>蛋白質</span>
@@ -117,7 +112,6 @@
         {% endif %}
       </div>
 
-      <!-- 脂肪 -->
       <div class="nutri-row">
         <div class="nutri-label">
           <span>脂肪</span>
@@ -172,9 +166,11 @@
 
 <hr>
 
-<!-- 當日重訓紀錄（跟之前一樣：PR、上次最大重量、總重量差值） -->
 <section>
-  <h4>當日重訓紀錄</h4>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h4>當日重訓紀錄</h4>
+    <a href="{{ url_for('rest_timer') }}" class="secondary outline" style="margin-bottom:1rem;">休息計時器</a>
+  </div>
 
   <details open>
     <summary>新增一組</summary>
@@ -265,7 +261,14 @@
       <h5 style="margin-top:1rem;">{{ part }}</h5>
       {% for ex_name, sets in ex_map.items() %}
         <details open style="margin:.25rem 0;">
-          <summary><strong>{{ ex_name }}</strong></summary>
+          <summary>
+            <strong>{{ ex_name }}</strong>
+            <a href="{{ url_for('progress', exercise_name=ex_name) }}" 
+               class="secondary" 
+               style="margin-left:.5rem; font-size: 0.8rem;">
+               📊 進步曲線
+            </a>
+          </summary>
           <table>
             <thead><tr><th>重量(kg)</th><th>次數</th><th>小計(kg)</th><th></th></tr></thead>
             <tbody>
@@ -297,7 +300,6 @@
 
 <hr>
 
-<!-- 當日行事項 -->
 <section>
   <h4>當日行事項</h4>
   <a href="{{ url_for('add', date=d.strftime('%Y-%m-%d')) }}" class="secondary">＋ 新增行事項</a>
@@ -326,6 +328,7 @@
 <script src="{{ url_for('static', filename='js/diet_suggest.js') }}"></script>
 
 <hr>
+
 <section>
   <h4>當日日記</h4>
 

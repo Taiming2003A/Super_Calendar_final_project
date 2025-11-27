@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {% extends "base.html" %}
 {% block content %}
 
@@ -156,3 +157,163 @@
 
 
 {% endblock %}
+=======
+{% extends "base.html" %}
+{% block content %}
+
+<h3>課表設定</h3>
+
+<p class="muted">
+  參考台科大節次代碼：星期 M/T/W/R/F/S/U，節次 0–10, A–D。<br>
+  你可以在下方新增、刪除自己的課程。
+</p>
+
+<section>
+  <h4>新增課程</h4>
+  <form method="post" action="{{ url_for('timetable_add') }}">
+    <div class="grid">
+      <label>星期
+        <select name="weekday_code" required>
+          {% for code, label in WEEKDAY_CHOICES %}
+            <option value="{{ code }}">{{ label }} ({{ code }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>節次
+        <select name="section" required>
+          {% for sec in SECTION_CHOICES %}
+            <option value="{{ sec }}">{{ sec }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>課程名稱
+        <input name="course_name" required placeholder="例如：動力學">
+      </label>
+      <label>教室
+        <input name="classroom" placeholder="例如：EE201">
+      </label>
+      <label>授課老師
+        <input name="teacher" placeholder="可留白">
+      </label>
+      <label>備註
+        <input name="note" placeholder="例如：每雙週上課">
+      </label>
+    </div>
+    <button type="submit" style="margin-top:.5rem;">新增</button>
+  </form>
+</section>
+
+<hr>
+
+<hr>
+
+<section style="margin-top:1rem;">
+  <h4>課表</h4>
+
+  {% if entries|length == 0 %}
+    <p class="muted">尚未新增任何課程，上方先新增幾筆吧。</p>
+  {% else %}
+
+    <style>
+      .tt-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      .tt-table th,
+      .tt-table td {
+        border: 1px solid #e5e7eb;
+        padding: 0.35rem;
+        vertical-align: top;
+        font-size: 0.85rem;
+      }
+      .tt-table th {
+        background: #f3f4f6;
+        text-align: center;
+      }
+      .tt-section-col {
+        width: 3rem;
+      }
+      .tt-slot {
+        margin-bottom: 0.25rem;
+        padding: 0.15rem 0.25rem;
+        border-radius: 0.35rem;
+        background: #eef2ff;
+      }
+      .tt-slot-title {
+        font-weight: 600;
+      }
+      .tt-slot-meta {
+        font-size: 0.75rem;
+        color: #6b7280;
+      }
+      .tt-slot-actions {
+        margin-top: 0.15rem;
+      }
+      .tt-slot-actions button {
+        font-size: 0.7rem;
+        padding: 0.1rem 0.3rem;
+      }
+    </style>
+
+    <table class="tt-table">
+      <thead>
+        <tr>
+          <th class="tt-section-col">節次</th>
+          {% for code, label in WEEKDAY_CHOICES %}
+            <th>{{ label }}<br><small>({{ code }})</small></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for sec in SECTION_CHOICES %}
+          <tr>
+            <!-- 左側節次標籤 -->
+            <th class="tt-section-col">{{ sec }}</th>
+
+            <!-- 各星期的格子 -->
+            {% for code, label in WEEKDAY_CHOICES %}
+              {% set slot_entries = entries_by_key.get((code, sec), []) %}
+              <td>
+                {% if slot_entries|length == 0 %}
+                  <span class="muted" style="font-size:0.75rem;">—</span>
+                {% else %}
+                  {% for e in slot_entries %}
+                    <div class="tt-slot">
+                      <div class="tt-slot-title">{{ e.course_name }}</div>
+                      <div class="tt-slot-meta">
+                        {% if e.classroom %}{{ e.classroom }}{% endif %}
+                        {% if e.teacher %}
+                          {% if e.classroom %} · {% endif %}
+                          {{ e.teacher }}
+                        {% endif %}
+                        {% if e.note %}
+                          <br>{{ e.note }}
+                        {% endif %}
+                      </div>
+                      <div class="tt-slot-actions">
+                        <form method="post"
+                              action="{{ url_for('timetable_delete', entry_id=e.id) }}"
+                              style="display:inline;">
+                          <button class="secondary outline"
+                                  onclick="return confirm('刪除此課程？');">
+                            刪除
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  {% endfor %}
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+  {% endif %}
+</section>
+
+
+{% endblock %}
+>>>>>>> origin/weight_record

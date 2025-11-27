@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -70,3 +71,59 @@
   </main>
 </body>
 </html>
+=======
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flask 行事曆</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: .5rem; }
+    .day { border: 1px solid #e5e7eb; border-radius: .5rem; padding: .5rem; min-height: 8rem; background:#fff; }
+    .muted { color:#9ca3af; }
+    .header { display:grid; grid-template-columns: repeat(7, 1fr); text-align:center; margin:.5rem 0; font-weight:600; }
+    .datebox { font-size:.9rem; display:flex; justify-content:space-between; align-items:center; gap:.25rem; }
+    .today { outline: 2px solid #2563eb; outline-offset: -2px; border-radius:.5rem; }
+    .badge { font-size:.75rem; padding:.1rem .4rem; border-radius:.4rem; border:1px solid #e5e7eb; }
+    .item { font-size:.9rem; margin:.25rem 0; }
+    .item-title { font-weight:600; }
+    .actions a, .actions form { display:inline-block; }
+    .topbar { display:flex; gap:.5rem; justify-content:space-between; align-items:center; }
+    .nav-right { display:flex; gap:.5rem; align-items:center; }
+
+    /* 重訓小圖示（主頁面/週頁面） */
+    .strength-dot { font-size: .9rem; line-height: 1; }
+    .strength-pill { display:inline-block; width:8px; height:8px; border-radius:50%; background:#ef4444; }
+  </style>
+</head>
+<body class="container">
+  <nav class="topbar">
+    <strong><a href="{{ url_for('index') }}" style="text-decoration:none;">Flask 行事曆</a></strong>
+    <div class="nav-right">
+      <a href="{{ url_for('week_view') }}">週檢視</a>
+      <a href="{{ url_for('day_view', datestr=(today if today else namespace()).strftime('%Y-%m-%d')) if today else '#' }}">今天</a>
+      <a href="{{ url_for('add') }}" role="button">＋ 新增</a>
+      <a href="{{ url_for('weight_page') }}">體重紀錄</a>
+    </div>
+  </nav>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div>
+        {% for category, message in messages %}
+          <article class="contrast" style="margin: .4rem 0;">
+            <small>{{ message }}</small>
+          </article>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
+>>>>>>> origin/weight_record

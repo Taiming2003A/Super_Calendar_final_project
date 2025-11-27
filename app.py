@@ -206,6 +206,15 @@ class DiaryEntry(db.Model):
     content = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=func.now())
 
+class WeightEntry(db.Model):
+    __tablename__ = "weight_entries"
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, index=True)
+    weight_kg = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=func.now())
+
+
 with app.app_context():
     db.create_all()
 
@@ -1312,6 +1321,91 @@ def diary_edit(entry_id):
 
     # "GET" 請求，顯示 "編輯頁面"
     return render_template("diary_edit.html", entry=entry)
+
+#===== 主程式入口 =====
+@app.route("/rest_timer")
+def rest_timer():
+    return render_template("rest_timer.html")
+
+
+# [新增] 查詢特定動作的進步圖表
+@app.route("/progress/<exercise_name>")
+@login_required
+def progress(exercise_name):
+    # 這裡對應夥伴原本的 SQL：
+    # SELECT date, MAX(weight_kg) FROM strength_sets ... GROUP BY date
+    
+    results = (
+        db.session.query(
+            StrengthSet.date,
+            func.max(StrengthSet.weight_kg) # 找出當天最大重量
+        )
+        .filter(StrengthSet.user_id == current_user.id) # [關鍵] 只抓自己的
+        .filter(StrengthSet.exercise_name == exercise_name) # 只抓特定動作
+        .group_by(StrengthSet.date) # 每天只留一筆最強的
+        .order_by(StrengthSet.date.asc()) # 依照日期排序
+        .all()
+    )
+
+    # 把資料轉成 Python 列表，傳給網頁畫圖用
+    # r[0] 是 date, r[1] 是 max_weight
+    dates = [r[0].strftime('%Y-%m-%d') for r in results]
+    weights = [r[1] for r in results]
+
+    return render_template(
+        "progress.html",
+        exercise_name=exercise_name,
+        dates=dates,
+        weights=weights
+    )
+
+@app.route("/weight", methods=["GET", "POST"])
+def weight_page():
+    """
+    顯示體重列表、表單新增，以及顯示進步曲線（以 Chart.js 繪圖）。
+    GET: 顯示頁面
+    POST: 新增一筆體重紀錄 (date, weight_kg) 然後 redirect 回 /weight
+    """
+    if request.method == "POST":
+        # 取值並簡單驗證
+        date_str = (request.form.get("date") or "").strip()
+        weight_str = (request.form.get("weight_kg") or "").strip()
+        try:
+            d = datetime.strptime(date_str, "%Y-%m-%d").date()
+            w = float(weight_str)
+            entry = WeightEntry(date=d, weight_kg=w)
+            db.session.add(entry)
+            db.session.commit()
+            flash("已新增體重紀錄", "success")
+        except Exception as e:
+            flash(f"新增失敗：{e}", "danger")
+        return redirect(url_for("weight_page"))
+
+    # GET: 讀出所有體重紀錄（按日期排序）並傳給 template
+    rows = (
+        WeightEntry.query
+        .order_by(WeightEntry.date.asc())
+        .all()
+    )
+    # template 偏好 arrays of strings/floats
+    dates = [r.date.strftime("%Y-%m-%d") for r in rows]
+    weights = [r.weight_kg for r in rows]
+
+    return render_template(
+        "weight.html",
+        rows=rows,
+        dates=dates,
+        weights=weights,
+    )
+
+@app.route("/weight/delete/<int:entry_id>", methods=["POST"])
+def weight_delete(entry_id):
+    w = WeightEntry.query.get_or_404(entry_id)
+    db.session.delete(w)
+    db.session.commit()
+    flash("已刪除體重紀錄", "info")
+    return redirect(url_for("weight_page"))
+
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {% extends "base.html" %}
 {% block content %}
 
@@ -47,3 +48,54 @@
 </div>
 
 {% endblock %}
+=======
+{% extends "base.html" %}
+{% block content %}
+
+<div class="topbar" style="margin:.5rem 0 1rem;">
+  <a href="{{ url_for('week_view', start=prev_start) }}">← 上一週</a>
+  <h3 style="margin:0;">週檢視（{{ days[0].strftime('%Y-%m-%d') }} ~ {{ days[-1].strftime('%Y-%m-%d') }}）</h3>
+  <a href="{{ url_for('week_view', start=next_start) }}">下一週 →</a>
+</div>
+
+<div class="header">
+  <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
+</div>
+
+<div class="calendar">
+  {% for d in days %}
+    {% set classes = "day" %}
+    {% if d == today %}{% set classes = classes + " today" %}{% endif %}
+    <div class="{{ classes }}">
+      <div class="datebox">
+        <a href="{{ url_for('day_view', datestr=d.strftime('%Y-%m-%d')) }}">{{ d.strftime('%m/%d') }}</a>
+        <div style="display:flex; gap:.35rem; align-items:center;">
+          {% if d in strength_dates %}
+            <span class="strength-dot" title="今日有重訓">🏋️</span>
+          {% endif %}
+          <a href="{{ url_for('add', date=d.strftime('%Y-%m-%d')) }}" class="muted">＋</a>
+        </div>
+      </div>
+
+      {% for it in items_by_date.get(d, []) %}
+        <div class="item">
+          <span class="badge">{{ it.item_type }}</span>
+          <div class="item-title">{{ it.title }}</div>
+          <div><small>{{ it.time_range_str() }}</small></div>
+          {% if it.content %}
+            <div style="font-size:.85rem; color:#4b5563;">{{ it.content|truncate(60) }}</div>
+          {% endif %}
+          <div class="actions" style="margin-top:.2rem;">
+            <a href="{{ url_for('edit', item_id=it.id) }}" class="secondary">編輯</a>
+            <form action="{{ url_for('delete', item_id=it.id) }}" method="post" style="display:inline;">
+              <button class="outline" onclick="return confirm('確定刪除？')">刪除</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+>>>>>>> origin/weight_record

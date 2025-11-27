@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {% extends "base.html" %}
 {% block content %}
 
@@ -56,3 +57,77 @@
 </section>
 
 {% endblock %}
+=======
+{% extends "base.html" %}
+{% block content %}
+
+<h3>重要事項</h3>
+
+<section style="margin-bottom:1rem;">
+  <h4>新增重要事項</h4>
+  <form method="post" action="{{ url_for('important') }}">
+    <div class="grid">
+      <label>標題
+        <input name="title" required placeholder="例如：研究所面試、報告截止日">
+      </label>
+      <label>日期
+        <input type="date" name="date" required>
+      </label>
+    </div>
+    <label>備註 / 說明
+      <textarea name="description" rows="2" placeholder="可填寫地點、注意事項等"></textarea>
+    </label>
+    <button type="submit" style="margin-top:.5rem;">新增</button>
+  </form>
+</section>
+
+<hr>
+
+<section style="margin-top:1rem;">
+  <h4>已登錄的重要事項</h4>
+
+  {% if items_with_delta|length == 0 %}
+    <p class="muted">目前尚未新增任何重要事項。</p>
+  {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>標題</th>
+          <th>剩餘天數</th>
+          <th>備註</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it, days_left in items_with_delta %}
+          <tr>
+            <td>{{ it.date.strftime('%Y-%m-%d') }}</td>
+            <td>{{ it.title }}</td>
+            <td>
+              {% if days_left > 0 %}
+                還有 {{ days_left }} 天
+              {% elif days_left == 0 %}
+                <strong>就是今天！</strong>
+              {% else %}
+                已過 {{ -days_left }} 天
+              {% endif %}
+            </td>
+            <td>{{ it.description or '' }}</td>
+            <td>
+              <form method="post" action="{{ url_for('important_delete', item_id=it.id) }}">
+                <button class="secondary outline"
+                        onclick="return confirm('刪除此重要事項？');">
+                  刪除
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</section>
+
+{% endblock %}
+>>>>>>> origin/weight_record

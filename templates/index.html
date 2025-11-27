@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 {% extends "base.html" %}
 {% block content %}
 
@@ -92,3 +93,99 @@
 </div>
 
 {% endblock %}
+=======
+{% extends "base.html" %}
+{% block content %}
+
+<div class="topbar">
+  <a href="{{ url_for('index', year=prev_year, month=prev_month) }}">← 上一月</a>
+  <h3 style="margin:0;">{{ year }} 年 {{ "%02d"|format(month) }} 月</h3>
+  <a href="{{ url_for('index', year=next_year, month=next_month) }}">下一月 →</a>
+</div>
+
+<!-- 全域每日營養目標 摘要 + 進入設定頁按鈕 -->
+<section style="margin-bottom:1rem;">
+  <h4>全域每日營養目標</h4>
+  {% if nutrition_goal %}
+    <p>
+      目前目標：
+      熱量 {{ '%.0f'|format(nutrition_goal.kcal_target) }} kcal，
+      碳水 {{ '%.1f'|format(nutrition_goal.carb_target) }} g，
+      蛋白質 {{ '%.1f'|format(nutrition_goal.protein_target) }} g，
+      脂肪 {{ '%.1f'|format(nutrition_goal.fat_target) }} g
+    </p>
+  {% else %}
+    <p class="muted">尚未設定全域目標。</p>
+  {% endif %}
+
+  <!-- 原本只有一個按鈕，改成兩個排在一起 -->
+  <div style="display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; margin-top:.25rem;">
+    <a href="{{ url_for('nutrition_goal_page') }}" role="button">
+      設定 / 修改全域每日營養目標
+    </a>
+    <a href="https://taiming20030.wixsite.com/taiwantechsmap"
+       target="_blank" rel="noopener"
+       role="button" class="contrast">
+      校園地圖
+    </a>
+    <a href="{{ url_for('timetable') }}" role="button" class="secondary">
+      課表
+    </a>
+    <!-- 新增：重要事項按鈕 -->
+    <a href="{{ url_for('important') }}" role="button" class="secondary">
+      重要事項
+    </a>
+    <!-- 新增：最近重要事項倒數顯示 -->
+    <span class="muted" style="font-size:0.9rem;">
+      {% if next_important %}
+        最近：{{ next_important.title }}（還有 {{ next_important_days }} 天）
+      {% else %}
+        目前沒有已設定的重要事項
+      {% endif %}
+    </span>
+  </div>
+</section>
+
+<div class="header">
+  <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
+</div>
+
+<div class="calendar">
+  {% for week in weeks %}
+    {% for d in week %}
+      {% set is_this_month = (d.month == month) %}
+      {% set classes = "day" %}
+      {% if d == today %}{% set classes = classes + " today" %}{% endif %}
+      <div class="{{ classes }}">
+        <div class="datebox">
+          <a href="{{ url_for('day_view', datestr=d.strftime('%Y-%m-%d')) }}"
+             class="{{ '' if is_this_month else 'muted' }}">{{ d.day }}</a>
+          <div style="display:flex; gap:.35rem; align-items:center;">
+            {% if d in strength_dates %}
+              <span class="strength-dot" title="今日有重訓">🏋️</span>
+            {% endif %}
+            <!-- 只保留快速新增的 ＋ 按鈕 -->
+            <a href="{{ url_for('add', date=d.strftime('%Y-%m-%d')) }}" class="muted">＋</a>
+          </div>
+        </div>
+
+        <!-- 主頁只顯示簡單資訊，不提供編輯/刪除按鈕 -->
+        {% for it in items_by_date.get(d, []) %}
+          <div class="item">
+            <span class="badge">{{ it.item_type }}</span>
+            <div class="item-title">{{ it.title }}</div>
+            <div><small>{{ it.time_range_str() }}</small></div>
+            {% if it.content %}
+              <div style="font-size:.85rem; color:#4b5563;">
+                {{ it.content|truncate(60) }}
+              </div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  {% endfor %}
+</div>
+
+{% endblock %}
+>>>>>>> origin/weight_record
