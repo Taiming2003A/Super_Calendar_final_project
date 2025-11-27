@@ -1,17 +1,76 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func
 from datetime import datetime, date, timedelta
 import calendar
+from authlib.integrations.flask_client import OAuth
+from dotenv import load_dotenv
+import os
+from werkzeug.middleware.proxy_fix import ProxyFix
+from authlib.jose import jwt
+import requests
+import json
+import base64
+
+load_dotenv()
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///calendar.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config["SECRET_KEY"] = "devkey"
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "devkey") # 建議連 Secret Key 也改用變數
+
+# ===== [修改] 改成從環境變數讀取 =====
+app.config['GOOGLE_CLIENT_ID'] = os.environ.get('GOOGLE_CLIENT_ID')
+app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get('GOOGLE_CLIENT_SECRET')
+app.config['LINE_CLIENT_ID'] = os.environ.get('LINE_CLIENT_ID')
+app.config['LINE_CLIENT_SECRET'] = os.environ.get('LINE_CLIENT_SECRET')
 db = SQLAlchemy(app)
 
+#=====環境變數debug=====
+if not app.config['GOOGLE_CLIENT_ID']:
+    print("⚠️ 警告：未偵測到 GOOGLE_CLIENT_ID 環境變數！")
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"  # 沒登入時踢去哪裡
+oauth = OAuth(app)
+
+# 修改 app.py 裡的 Google 註冊部分
+
+google = oauth.register(
+    name='google',
+    client_id=app.config['GOOGLE_CLIENT_ID'],
+    client_secret=app.config['GOOGLE_CLIENT_SECRET'],
+    
+    # [修正] 移除手動寫死的 access_token_url, authorize_url, api_base_url
+    # 改用這個自動設定檔：
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    
+    client_kwargs={'scope': 'openid email profile'},
+)
+
+# 修改 app.py 裡的 LINE 註冊部分
+
+line = oauth.register(
+    name='line',
+    client_id=app.config['LINE_CLIENT_ID'],
+    client_secret=app.config['LINE_CLIENT_SECRET'],
+    
+    # 使用自動發現，讓它自己處理網址
+    server_metadata_url='https://access.line.me/.well-known/openid-configuration',
+    
+    # 只需要指定 scope 和 Auth Method
+    client_kwargs={
+        'scope': 'profile openid email',
+        'token_endpoint_auth_method': 'client_secret_post',
+    },
+)
+
 # ===== 常數 =====
-ITEM_TYPES = [("工作", "工作"), ("提醒", "提醒"), ("活動", "活動")]
+# [修改] 加入 "重要" 選項
+ITEM_TYPES = [("工作", "工作"), ("提醒", "提醒"), ("活動", "活動"), ("重要", "重要事項")]
 MEAL_TYPES = [("早餐", "早餐"), ("午餐", "午餐"), ("晚餐", "晚餐"), ("點心", "點心")]
 
 STRENGTH_CATEGORIES = {
@@ -42,8 +101,29 @@ SECTION_CHOICES = [
 GLOBAL_GOAL_DATE = date(2000, 1, 1)
 
 # ===== 資料表 =====
+class User(UserMixin, db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(100), unique=True, nullable=False, index=True) # Email 是核心
+    name = db.Column(db.String(100), nullable=True)
+    created_at = db.Column(db.DateTime, default=func.now())
+    
+    # 建立關聯：一個 User 可以有多個 SocialAuth
+    social_auths = db.relationship('SocialAuth', backref='user', lazy=True)
+
+class SocialAuth(db.Model):
+    __tablename__ = "social_auths"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    provider = db.Column(db.String(20), nullable=False)  # 'google' 或 'line'
+    social_id = db.Column(db.String(100), nullable=False) # 該平台的唯一 ID
+    
+    # 確保同一個平台不會有重複的 social_id
+    __table_args__ = (db.UniqueConstraint('provider', 'social_id', name='_provider_social_uc'),)
+
 class CalendarItem(db.Model):
     __tablename__ = "calendar_items"
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(120), nullable=False)
     item_type = db.Column(db.String(10), nullable=False)
@@ -58,6 +138,7 @@ class CalendarItem(db.Model):
 
 class DietEntry(db.Model):
     __tablename__ = "diet_entries"
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, index=True)
     meal_type = db.Column(db.String(10), nullable=False)
@@ -70,6 +151,7 @@ class DietEntry(db.Model):
 
 class StrengthSet(db.Model):
     __tablename__ = "strength_sets"
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, index=True)
     body_part = db.Column(db.String(10), nullable=False)
@@ -80,6 +162,7 @@ class StrengthSet(db.Model):
 
 class TimetableEntry(db.Model):
     __tablename__ = "timetable_entries"
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     id = db.Column(db.Integer, primary_key=True)
     # 星期：M, T, W, R, F, S, U（對應台科大：一二三四五六日）
     weekday_code = db.Column(db.String(1), nullable=False)
@@ -95,6 +178,7 @@ class DailyNutritionGoal(db.Model):
     全域營養目標：只使用表中的第一筆（用 GLOBAL_GOAL_DATE 存）
     """
     __tablename__ = "daily_nutrition_goals"
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.Date, nullable=False, unique=True)
     kcal_target = db.Column(db.Float, default=0.0)
@@ -104,14 +188,40 @@ class DailyNutritionGoal(db.Model):
 
 class ImportantItem(db.Model):
     __tablename__ = "important_items"
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(120), nullable=False)
     date = db.Column(db.Date, nullable=False)
     description = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=func.now())
 
+class DiaryEntry(db.Model):
+    __tablename__ = "diary_entries"
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    # 關聯到特定日期，並設定為索引
+    # [!] 我們移除了 unique=True
+    date = db.Column(db.Date, nullable=False, index=True) 
+    title = db.Column(db.String(200), nullable=True)
+    content = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=func.now())
+
+class WeightEntry(db.Model):
+    __tablename__ = "weight_entries"
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, index=True)
+    weight_kg = db.Column(db.Float, nullable=False)
+    created_at = db.Column(db.DateTime, default=func.now())
+
+
 with app.app_context():
     db.create_all()
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 # ===== 小工具 =====
 def month_range(year: int, month: int):
@@ -132,8 +242,12 @@ def week_range_from_start(monday: date):
     return [monday + timedelta(days=i) for i in range(7)]
 
 def strength_dates_between(start_d: date, end_d: date):
+    if not current_user.is_authenticated:
+        return set()
+
     rows = (
         StrengthSet.query.with_entities(StrengthSet.date)
+        .filter(StrengthSet.user_id == current_user.id)
         .filter(StrengthSet.date.between(start_d, end_d))
         .group_by(StrengthSet.date)
         .all()
@@ -142,13 +256,25 @@ def strength_dates_between(start_d: date, end_d: date):
 
 def get_global_nutrition_goal():
     """取得全域營養目標（如果沒有就回傳 None）"""
-    return DailyNutritionGoal.query.order_by(DailyNutritionGoal.id.asc()).first()
+    if not current_user.is_authenticated:
+        return None
+
+    return (
+        DailyNutritionGoal.query
+        .filter(DailyNutritionGoal.user_id == current_user.id)
+        .order_by(DailyNutritionGoal.id.asc())
+        .first()
+    )
 
 def get_next_important():
     """取得最近一個尚未過期的重要事項與剩餘天數"""
+    if not current_user.is_authenticated:
+        return None, None
+
     today = date.today()
     row = (
         ImportantItem.query
+        .filter(ImportantItem.user_id == current_user.id)
         .filter(ImportantItem.date >= today)
         .order_by(ImportantItem.date.asc())
         .first()
@@ -158,8 +284,174 @@ def get_next_important():
         return row, days_left
     return None, None
 
+
+#====建立或取得使用者=====
+
+def get_or_create_user(provider, social_id, email, name):
+    # 1. 檢查是否已經有這個 SocialAuth 紀錄
+    social = SocialAuth.query.filter_by(provider=provider, social_id=social_id).first()
+    
+    if social:
+        # 情境 A: 老手，已經綁定過這個 Google/LINE
+        return social.user
+    else:
+        # 情境 B: 這個 Google/LINE 第一次來，檢查 Email
+        user = User.query.filter_by(email=email).first()
+        
+        if user:
+            # 情境 B-1: 人已經在資料庫了 (帳號連結)
+            new_social = SocialAuth(user_id=user.id, provider=provider, social_id=social_id)
+            db.session.add(new_social)
+            db.session.commit()
+            flash(f"已將您的 {provider} 帳號連結到現有帳戶！", "success")
+            return user
+        else:
+            # 情境 B-2: 完全的新手 (建立新帳號)
+            new_user = User(email=email, name=name)
+            db.session.add(new_user)
+            db.session.commit()
+            
+            new_social = SocialAuth(user_id=new_user.id, provider=provider, social_id=social_id)
+            db.session.add(new_social)
+            db.session.commit()
+            flash(f"歡迎註冊，{name}！", "success")
+            return new_user
+        
+# ===== 公開頁面：條款與隱私 =====
+
+@app.route("/terms")
+def terms():
+    return render_template("terms.html")
+
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+#====登入邏輯=====
+
+@app.route('/login')
+def login():
+    # 如果已經登入，直接回首頁
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('已登出', 'info')
+    return redirect(url_for('login'))
+
+@app.route('/login/google')
+def google_login():
+    redirect_uri = url_for('google_auth', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@app.route('/auth/google/callback')
+def google_auth():
+    token = google.authorize_access_token()
+    
+    # [修改 1] 不要再發 request 去要 userinfo 了
+    # 改用 parse_id_token 直接解密 token 裡的資料
+    user_info = google.parse_id_token(token, nonce=None)
+    
+    # [修改 2] Google 的 OIDC 標準欄位，ID 叫做 'sub' (Subject)，不是 'id'
+    social_id = user_info['sub'] 
+    
+    email = user_info.get('email')
+    name = user_info.get('name')
+
+    # ... (後面的資料庫邏輯完全不用動) ...
+    user = get_or_create_user(
+        provider='google',
+        social_id=social_id,
+        email=email,
+        name=name
+    )
+    
+    login_user(user, remember=True)
+    return redirect(url_for('index'))
+
+
+@app.route('/login/line')
+def line_login():
+    redirect_uri = url_for('line_auth', _external=True)
+    return line.authorize_redirect(redirect_uri)
+
+@app.route('/auth/line/callback')
+def line_auth():
+    # 1. 取得 Code
+    code = request.args.get('code')
+    if not code:
+        flash("錯誤：沒有收到認證碼", "danger")
+        return redirect(url_for('login'))
+
+    # 2. 準備換 Token
+    token_url = 'https://api.line.me/oauth2/v2.1/token'
+    redirect_uri = url_for('line_auth', _external=True)
+    
+    payload = {
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': redirect_uri,
+        'client_id': app.config['LINE_CLIENT_ID'],
+        'client_secret': app.config['LINE_CLIENT_SECRET'],
+    }
+
+    # 3. 發送請求換 Token
+    resp = requests.post(token_url, data=payload)
+    if resp.status_code != 200:
+        flash(f"LINE 登入失敗: {resp.text}", "danger")
+        return redirect(url_for('login'))
+
+    token_data = resp.json()
+    id_token = token_data.get('id_token')
+
+    # ==========================================
+    # [重點修改] 手動暴力解碼 (不依賴任何 JWT 套件)
+    # ==========================================
+    
+    # JWT 的結構是: header.payload.signature
+    # 我們只需要中間的 payload
+    parts = id_token.split('.')
+    payload_segment = parts[1]
+    
+    # Base64 解碼需要補齊長度 (Padding)
+    padding = '=' * (4 - len(payload_segment) % 4)
+    payload_segment += padding
+    
+    # 解碼並轉成 JSON
+    decoded_bytes = base64.urlsafe_b64decode(payload_segment)
+    user_info = json.loads(decoded_bytes)
+    
+    # ==========================================
+
+    # 5. 取得資料
+    social_id = user_info['sub']
+    email = user_info.get('email')
+    name = user_info.get('name')
+
+    if not email:
+        flash("無法取得 LINE Email，請確認 LINE Developers 後台權限已開啟。", "danger")
+        return redirect(url_for('login'))
+
+    # 6. 登入系統
+    user = get_or_create_user(
+        provider='line',
+        social_id=social_id,
+        email=email,
+        name=name
+    )
+    
+    login_user(user, remember=True)
+    flash(f'歡迎回來，{name}！', 'success')
+    return redirect(url_for('index'))
+
+
 # ===== 首頁（月檢視） =====
 @app.route("/")
+@login_required
 def index():
     try:
         year = int(request.args.get("year", datetime.today().year))
@@ -171,6 +463,7 @@ def index():
 
     items = (
         CalendarItem.query
+        .filter(CalendarItem.user_id == current_user.id)
         .filter(CalendarItem.date.between(first_day, last_day))
         .order_by(CalendarItem.date.asc(), CalendarItem.start_time.asc())
         .all()
@@ -208,10 +501,12 @@ def index():
     )
 
 @app.route("/timetable", methods=["GET"])
+@login_required
 def timetable():
     # 依星期、節次排序顯示
     entries = (
         TimetableEntry.query
+        .filter(TimetableEntry.user_id == current_user.id)
         .order_by(TimetableEntry.weekday_code.asc(), TimetableEntry.section.asc())
         .all()
     )
@@ -284,6 +579,7 @@ def timetable():
 
 
 @app.route("/timetable/add", methods=["POST"])
+@login_required
 def timetable_add():
     weekday_code = request.form.get("weekday_code")
     section = request.form.get("section")
@@ -303,6 +599,7 @@ def timetable_add():
         return redirect(url_for("timetable"))
 
     entry = TimetableEntry(
+        user_id=current_user.id,
         weekday_code=weekday_code,
         section=section,
         course_name=course_name,
@@ -317,8 +614,9 @@ def timetable_add():
 
 
 @app.route("/timetable/delete/<int:entry_id>", methods=["POST"])
+@login_required
 def timetable_delete(entry_id):
-    entry = TimetableEntry.query.get_or_404(entry_id)
+    entry = TimetableEntry.query.filter(TimetableEntry.user_id == current_user.id, TimetableEntry.id == entry_id).first_or_404()
     db.session.delete(entry)
     db.session.commit()
     flash("已刪除課表項目", "info")
@@ -326,6 +624,7 @@ def timetable_delete(entry_id):
 
 # ===== 全域營養目標設定頁（含建議計算） =====
 @app.route("/nutrition_goal", methods=["GET", "POST"])
+@login_required
 def nutrition_goal_page():
     goal = get_global_nutrition_goal()
 
@@ -426,6 +725,7 @@ def nutrition_goal_page():
 
 # ===== 週檢視 =====
 @app.route("/week")
+@login_required
 def week_view():
     start_str = request.args.get("start")
     if start_str:
@@ -441,6 +741,7 @@ def week_view():
 
     items = (
         CalendarItem.query
+        .filter(CalendarItem.user_id == current_user.id)
         .filter(CalendarItem.date.between(start_d, end_d))
         .order_by(CalendarItem.date.asc(), CalendarItem.start_time.asc())
         .all()
@@ -466,7 +767,9 @@ def week_view():
     )
 
 # ===== 日檢視 =====
+# ===== 日檢視 =====
 @app.route("/day/<string:datestr>")
+@login_required  # <--- [1] 關鍵：加上這行，沒登入不准看
 def day_view(datestr):
     try:
         d = datetime.strptime(datestr, "%Y-%m-%d").date()
@@ -474,18 +777,23 @@ def day_view(datestr):
         flash("日期格式錯誤", "warning")
         return redirect(url_for("index"))
 
-    # 行事項
+    # [2] 因為有 @login_required，我們不需要再判斷 if auth 了
+    # 直接假定 current_user 存在，並強制過濾 user_id
+
+    # 1. 行事曆
     items = (
         CalendarItem.query
         .filter(CalendarItem.date == d)
+        .filter(CalendarItem.user_id == current_user.id) # <--- 強制過濾
         .order_by(CalendarItem.start_time.asc())
         .all()
     )
 
-    # 飲食
+    # 2. 飲食
     diets = (
         DietEntry.query
         .filter(DietEntry.date == d)
+        .filter(DietEntry.user_id == current_user.id) # <--- 強制過濾
         .order_by(DietEntry.created_at.asc())
         .all()
     )
@@ -499,11 +807,21 @@ def day_view(datestr):
     for de in diets:
         diets_by_meal.setdefault(de.meal_type, []).append(de)
 
-    # 全域營養目標
-    goal = get_global_nutrition_goal()
+    # 3. 日記
+    diary_entries = (
+        DiaryEntry.query
+        .filter(DiaryEntry.date == d)
+        .filter(DiaryEntry.user_id == current_user.id) # <--- 強制過濾
+        .order_by(DiaryEntry.created_at.asc())
+        .all()
+    )
+
+    # 4. 全域營養目標
+    goal = get_global_nutrition_goal() # 這個函數裡面我們已經修過，會檢查 user_id
     nutrition_goal = goal
     nutrition_diff = None
     nutrition_percent = None
+    
     if goal:
         nutrition_diff = {}
         nutrition_percent = {}
@@ -529,10 +847,11 @@ def day_view(datestr):
             totals_diet["fat_g"], goal.fat_target
         )
 
-    # 重訓
+    # 5. 重訓
     sets_ = (
         StrengthSet.query
         .filter(StrengthSet.date == d)
+        .filter(StrengthSet.user_id == current_user.id) # <--- 強制過濾
         .order_by(StrengthSet.created_at.asc())
         .all()
     )
@@ -549,24 +868,29 @@ def day_view(datestr):
         best = max(lst, key=lambda s: ((s.weight_kg or 0) * (s.reps or 0)))
         exercise_best_set_id[ex_name] = best.id
 
+    # 6. 上次重訓統計 (複雜查詢)
     prev_total_date = None
     prev_total_weight = None
     total_diff_vs_prev = None
+    
     prev_row = (
         db.session.query(
             StrengthSet.date,
             func.sum(StrengthSet.weight_kg * StrengthSet.reps)
         )
+        .filter(StrengthSet.user_id == current_user.id) # <--- 強制過濾
         .filter(StrengthSet.date < d)
         .group_by(StrengthSet.date)
         .order_by(StrengthSet.date.desc())
         .first()
     )
+    
     if prev_row:
         prev_total_date = prev_row[0]
         prev_total_weight = float(prev_row[1] or 0.0)
         total_diff_vs_prev = total_weight - prev_total_weight
 
+    # 7. 上次最大重量 (複雜查詢)
     last_max_weight = {}
     rows = (
         db.session.query(
@@ -574,6 +898,7 @@ def day_view(datestr):
             StrengthSet.date,
             func.max(StrengthSet.weight_kg),
         )
+        .filter(StrengthSet.user_id == current_user.id) # <--- 強制過濾
         .filter(StrengthSet.date < d)
         .group_by(StrengthSet.exercise_name, StrengthSet.date)
         .all()
@@ -607,32 +932,14 @@ def day_view(datestr):
         STRENGTH_CATEGORIES=STRENGTH_CATEGORIES,
         prev_day=prev_day,
         next_day=next_day,
+        diary_entries=diary_entries,
     )
 
-@app.route("/important", methods=["GET", "POST"])
+@app.route("/important", methods=["GET"]) # [修改] 只剩下 GET
+@login_required
 def important():
-    if request.method == "POST":
-        title = (request.form.get("title") or "").strip()
-        date_str = request.form.get("date") or ""
-        description = (request.form.get("description") or "").strip()
-
-        if not title:
-            flash("標題不可為空", "warning")
-            return redirect(url_for("important"))
-
-        try:
-            d = datetime.strptime(date_str, "%Y-%m-%d").date()
-        except ValueError:
-            flash("日期格式錯誤", "warning")
-            return redirect(url_for("important"))
-
-        item = ImportantItem(title=title, date=d, description=description)
-        db.session.add(item)
-        db.session.commit()
-        flash("已新增重要事項", "success")
-        return redirect(url_for("important"))
-
-    items = ImportantItem.query.order_by(ImportantItem.date.asc()).all()
+    # 這裡只負責顯示列表，新增功能已經移到 /add 了
+    items = ImportantItem.query.filter(ImportantItem.user_id == current_user.id).order_by(ImportantItem.date.asc()).all()
     today = date.today()
     items_with_delta = []
     for it in items:
@@ -651,8 +958,9 @@ def important():
 
 
 @app.route("/important/delete/<int:item_id>", methods=["POST"])
+@login_required
 def important_delete(item_id):
-    item = ImportantItem.query.get_or_404(item_id)
+    item = ImportantItem.query.filter(ImportantItem.user_id == current_user.id, ImportantItem.id == item_id).first_or_404()
     db.session.delete(item)
     db.session.commit()
     flash("已刪除重要事項", "info")
@@ -660,6 +968,7 @@ def important_delete(item_id):
 
 # ===== 全域營養目標儲存 =====
 @app.route("/nutrition_goal/save", methods=["POST"])
+@login_required
 def save_nutrition_goal():
     def parse_float(name):
         val = (request.form.get(name, "") or "").strip()
@@ -677,7 +986,7 @@ def save_nutrition_goal():
 
     goal = get_global_nutrition_goal()
     if not goal:
-        goal = DailyNutritionGoal(date=GLOBAL_GOAL_DATE)
+        goal = DailyNutritionGoal(user_id=current_user.id, date=GLOBAL_GOAL_DATE)
         db.session.add(goal)
 
     goal.kcal_target = kcal_t
@@ -691,6 +1000,7 @@ def save_nutrition_goal():
 
 # ===== 飲食：新增/刪除 =====
 @app.route("/diet/add", methods=["POST"])
+@login_required
 def diet_add():
     try:
         d = datetime.strptime(request.form["date"], "%Y-%m-%d").date()
@@ -709,6 +1019,7 @@ def diet_add():
             return redirect(url_for("day_view", datestr=d.strftime("%Y-%m-%d")))
 
         db.session.add(DietEntry(
+            user_id=current_user.id,
             date=d,
             meal_type=meal_type,
             food_name=food_name,
@@ -725,8 +1036,9 @@ def diet_add():
     return redirect(url_for("day_view", datestr=d.strftime("%Y-%m-%d")))
 
 @app.route("/diet/delete/<int:diet_id>", methods=["POST"])
+@login_required
 def diet_delete(diet_id):
-    de = DietEntry.query.get_or_404(diet_id)
+    de = DietEntry.query.filter(DietEntry.user_id == current_user.id, DietEntry.id == diet_id).first_or_404()
     d = de.date
     db.session.delete(de)
     db.session.commit()
@@ -735,6 +1047,7 @@ def diet_delete(diet_id):
 
 # ===== 重訓：新增/刪除 =====
 @app.route("/strength/add", methods=["POST"])
+@login_required
 def strength_add():
     try:
         d = datetime.strptime(request.form["date"], "%Y-%m-%d").date()
@@ -749,6 +1062,7 @@ def strength_add():
             return redirect(url_for("day_view", datestr=d.strftime("%Y-%m-%d")))
 
         db.session.add(StrengthSet(
+            user_id=current_user.id,
             date=d,
             body_part=body_part,
             exercise_name=exercise_name,
@@ -763,8 +1077,9 @@ def strength_add():
     return redirect(url_for("day_view", datestr=d.strftime("%Y-%m-%d")))
 
 @app.route("/strength/delete/<int:set_id>", methods=["POST"])
+@login_required
 def strength_delete(set_id):
-    s = StrengthSet.query.get_or_404(set_id)
+    s = StrengthSet.query.filter(StrengthSet.user_id == current_user.id, StrengthSet.id == set_id).first_or_404()
     d = s.date
     db.session.delete(s)
     db.session.commit()
@@ -773,16 +1088,18 @@ def strength_delete(set_id):
 
 # ===== 行事曆項目：新增 / 編輯 / 刪除 =====
 @app.route("/add", methods=["GET", "POST"])
+@login_required
 def add():
     if request.method == "POST":
         try:
+            # 1. 取得共同欄位
             title = request.form["title"].strip()
             item_type = request.form["item_type"]
             date_str = request.form["date"]
-            start_str = request.form["start_time"]
-            end_str = request.form["end_time"]
+            # 備註/內容 (對重要事項來說是 description，對行事曆來說是 content)
             content = request.form.get("content", "").strip()
 
+            # 2. 基本檢查
             if not title:
                 flash("標題不可為空", "warning")
                 return redirect(request.url)
@@ -791,23 +1108,56 @@ def add():
                 return redirect(request.url)
 
             d = datetime.strptime(date_str, "%Y-%m-%d").date()
-            st = datetime.strptime(start_str, "%H:%M").time()
-            et = datetime.strptime(end_str, "%H:%M").time()
-            if et <= st:
-                flash("結束時間必須晚於開始時間", "warning")
-                return redirect(request.url)
 
-            db.session.add(CalendarItem(
-                title=title,
-                item_type=item_type,
-                date=d,
-                start_time=st,
-                end_time=et,
-                content=content,
-            ))
-            db.session.commit()
-            flash("已新增項目", "success")
-            return redirect(url_for("index", year=d.year, month=d.month))
+            # ===== [分支邏輯] =====
+            
+            # 情境 A: 如果是 "重要事項"
+            if item_type == "重要":
+                # 重要事項不需要時間，所以我們忽略 start_time/end_time
+                item = ImportantItem(
+                    user_id=current_user.id,
+                    title=title,
+                    date=d,
+                    description=content  # 把表單的 content 存入 description
+                )
+                db.session.add(item)
+                db.session.commit()
+                flash("已新增重要事項", "success")
+                # 新增完後，可以導向 "重要事項列表" 或 "首頁"
+                return redirect(url_for("important"))
+
+            # 情境 B: 如果是 一般行事曆 (工作/提醒/活動)
+            else:
+                # 只有一般事項才需要檢查時間
+                start_str = request.form.get("start_time")
+                end_str = request.form.get("end_time")
+                
+                # 防呆：如果不是重要事項，時間必填
+                if not start_str or not end_str:
+                    flash("請填寫開始與結束時間", "warning")
+                    return redirect(request.url)
+
+                st = datetime.strptime(start_str, "%H:%M").time()
+                et = datetime.strptime(end_str, "%H:%M").time()
+
+                if et <= st:
+                    flash("結束時間必須晚於開始時間", "warning")
+                    return redirect(request.url)
+
+                # 存入 CalendarItem
+                db.session.add(CalendarItem(
+                    user_id=current_user.id,
+                    title=title,
+                    item_type=item_type,
+                    date=d,
+                    start_time=st,
+                    end_time=et,
+                    content=content,
+                ))
+                db.session.commit()
+                flash("已新增項目", "success")
+                return redirect(url_for("index", year=d.year, month=d.month))
+
         except Exception as e:
             flash(f"發生錯誤：{e}", "danger")
             return redirect(request.url)
@@ -817,8 +1167,9 @@ def add():
                            default_date=default_date)
 
 @app.route("/edit/<int:item_id>", methods=["GET", "POST"])
+@login_required
 def edit(item_id):
-    it = CalendarItem.query.get_or_404(item_id)
+    it = CalendarItem.query.filter(CalendarItem.user_id == current_user.id, CalendarItem.id == item_id).first_or_404()
     if request.method == "POST":
         try:
             title = request.form["title"].strip()
@@ -856,13 +1207,205 @@ def edit(item_id):
     return render_template("form.html", mode="edit", ITEM_TYPES=ITEM_TYPES, item=it)
 
 @app.route("/delete/<int:item_id>", methods=["POST"])
+@login_required
 def delete(item_id):
-    it = CalendarItem.query.get_or_404(item_id)
+    it = CalendarItem.query.filter(CalendarItem.user_id == current_user.id, CalendarItem.id == item_id).first_or_404()
     y, m = it.date.year, it.date.month
     db.session.delete(it)
     db.session.commit()
     flash("已刪除項目", "info")
     return redirect(url_for("index", year=y, month=m))
+
+
+#=====食品營養成分查詢API=====
+@app.route("/api/diet/suggest")
+@login_required
+def diet_suggest():
+    # 1. 取得 URL ?q=... 後面的查詢參數
+    q = request.args.get("q", "").strip()
+
+    # 如果查詢為空，就回傳空列表
+    if not q:
+        return jsonify([])
+
+    # (1) 找出每個 food_name 的最大(最新) ID，限定為目前使用者
+    subquery = (
+        db.session.query(func.max(DietEntry.id))
+        .filter(DietEntry.user_id == current_user.id)
+        .group_by(DietEntry.food_name)
+        .subquery()
+    )
+
+    # (2) 篩選出符合 q 的最新紀錄（僅限使用者）
+    suggestions = (
+        DietEntry.query.filter(
+            DietEntry.id.in_(subquery),         # ID 必須在 "最新 ID 列表" 中
+            DietEntry.food_name.ilike(f"{q}%"),  # food_name 開頭為 q (ilike = 不分大小寫)
+            DietEntry.user_id == current_user.id
+        )
+        .order_by(DietEntry.food_name) # 依照名稱排序
+        .limit(10)                     # 最多 10 筆
+        .all()
+    )
+
+    results = [
+        {
+            "name": s.food_name,
+            "kcal": s.kcal,
+            "protein": s.protein_g,
+            "fat": s.fat_g,
+            "carb": s.carb_g,
+        }
+        for s in suggestions
+    ]
+    
+    return jsonify(results)
+
+
+
+#=====日記功能======
+@app.route("/day/<string:datestr>/diary/add", methods=["POST"])
+@login_required
+def diary_add(datestr):
+    try:
+        d = datetime.strptime(datestr, "%Y-%m-%d").date()
+    except ValueError:
+        flash("日期格式錯誤", "danger")
+        return redirect(url_for("index"))
+
+    title = request.form.get("title", "").strip()
+    content = request.form.get("content", "").strip()
+
+    # 如果標題和內容都為空，就不儲存
+    if not title and not content:
+        flash("日記標題和內容皆為空，未儲存。", "info")
+        return redirect(url_for("day_view", datestr=datestr))
+
+    entry = DiaryEntry(
+        user_id=current_user.id,
+        date=d,
+        title=title,
+        content=content
+    )
+    db.session.add(entry)
+    db.session.commit()
+    flash("已新增日記", "success")
+    return redirect(url_for("day_view", datestr=datestr))
+
+
+@app.route("/diary/delete/<int:entry_id>", methods=["POST"])
+@login_required
+def diary_delete(entry_id):
+    entry = DiaryEntry.query.filter(DiaryEntry.user_id == current_user.id, DiaryEntry.id == entry_id).first_or_404()
+    datestr = entry.date.strftime("%Y-%m-%d")
+    
+    db.session.delete(entry)
+    db.session.commit()
+    
+    flash("已刪除日記", "info")
+    return redirect(url_for("day_view", datestr=datestr))
+
+
+@app.route("/diary/edit/<int:entry_id>", methods=["GET", "POST"])
+@login_required
+def diary_edit(entry_id):
+    entry = DiaryEntry.query.filter(DiaryEntry.user_id == current_user.id, DiaryEntry.id == entry_id).first_or_404()
+
+    if request.method == "POST":
+        # "儲存" 邏輯
+        entry.title = request.form.get("title", "").strip()
+        entry.content = request.form.get("content", "").strip()
+        db.session.commit()
+        flash("已更新日記", "success")
+        return redirect(url_for("day_view", datestr=entry.date.strftime("%Y-%m-%d")))
+
+    # "GET" 請求，顯示 "編輯頁面"
+    return render_template("diary_edit.html", entry=entry)
+
+#===== 主程式入口 =====
+@app.route("/rest_timer")
+def rest_timer():
+    return render_template("rest_timer.html")
+
+
+# [新增] 查詢特定動作的進步圖表
+@app.route("/progress/<exercise_name>")
+@login_required
+def progress(exercise_name):
+    # 這裡對應夥伴原本的 SQL：
+    # SELECT date, MAX(weight_kg) FROM strength_sets ... GROUP BY date
+    
+    results = (
+        db.session.query(
+            StrengthSet.date,
+            func.max(StrengthSet.weight_kg) # 找出當天最大重量
+        )
+        .filter(StrengthSet.user_id == current_user.id) # [關鍵] 只抓自己的
+        .filter(StrengthSet.exercise_name == exercise_name) # 只抓特定動作
+        .group_by(StrengthSet.date) # 每天只留一筆最強的
+        .order_by(StrengthSet.date.asc()) # 依照日期排序
+        .all()
+    )
+
+    # 把資料轉成 Python 列表，傳給網頁畫圖用
+    # r[0] 是 date, r[1] 是 max_weight
+    dates = [r[0].strftime('%Y-%m-%d') for r in results]
+    weights = [r[1] for r in results]
+
+    return render_template(
+        "progress.html",
+        exercise_name=exercise_name,
+        dates=dates,
+        weights=weights
+    )
+
+@app.route("/weight", methods=["GET", "POST"])
+def weight_page():
+    """
+    顯示體重列表、表單新增，以及顯示進步曲線（以 Chart.js 繪圖）。
+    GET: 顯示頁面
+    POST: 新增一筆體重紀錄 (date, weight_kg) 然後 redirect 回 /weight
+    """
+    if request.method == "POST":
+        # 取值並簡單驗證
+        date_str = (request.form.get("date") or "").strip()
+        weight_str = (request.form.get("weight_kg") or "").strip()
+        try:
+            d = datetime.strptime(date_str, "%Y-%m-%d").date()
+            w = float(weight_str)
+            entry = WeightEntry(date=d, weight_kg=w)
+            db.session.add(entry)
+            db.session.commit()
+            flash("已新增體重紀錄", "success")
+        except Exception as e:
+            flash(f"新增失敗：{e}", "danger")
+        return redirect(url_for("weight_page"))
+
+    # GET: 讀出所有體重紀錄（按日期排序）並傳給 template
+    rows = (
+        WeightEntry.query
+        .order_by(WeightEntry.date.asc())
+        .all()
+    )
+    # template 偏好 arrays of strings/floats
+    dates = [r.date.strftime("%Y-%m-%d") for r in rows]
+    weights = [r.weight_kg for r in rows]
+
+    return render_template(
+        "weight.html",
+        rows=rows,
+        dates=dates,
+        weights=weights,
+    )
+
+@app.route("/weight/delete/<int:entry_id>", methods=["POST"])
+def weight_delete(entry_id):
+    w = WeightEntry.query.get_or_404(entry_id)
+    db.session.delete(w)
+    db.session.commit()
+    flash("已刪除體重紀錄", "info")
+    return redirect(url_for("weight_page"))
+
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Flask 行事曆</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/trix@2.0.8/dist/trix.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script type="text/javascript" src="https://unpkg.com/trix@2.0.8/dist/trix.umd.min.js"></script>
+  
   <style>
     .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: .5rem; }
     .day { border: 1px solid #e5e7eb; border-radius: .5rem; padding: .5rem; min-height: 8rem; background:#fff; }
@@ -26,13 +30,28 @@
 </head>
 <body class="container">
   <nav class="topbar">
-    <strong><a href="{{ url_for('index') }}" style="text-decoration:none;">Flask 行事曆</a></strong>
-    <div class="nav-right">
+  <strong>
+    <a href="{{ url_for('index') }}" style="text-decoration:none; font-size:1.2rem;">
+      Flask 行事曆
+    </a>
+  </strong>
+
+  <div class="nav-right">
+    
+    {% if current_user.is_authenticated %}
+      <span style="margin-right: 0.5rem; font-size: 0.9rem;">Hi, {{ current_user.name }}</span>
+      
       <a href="{{ url_for('week_view') }}">週檢視</a>
-      <a href="{{ url_for('day_view', datestr=(today if today else namespace()).strftime('%Y-%m-%d')) if today else '#' }}">今天</a>
-      <a href="{{ url_for('add') }}" role="button">＋ 新增</a>
-    </div>
-  </nav>
+      <a href="{{ url_for('important') }}">重要事項</a>
+      
+      <a href="{{ url_for('logout') }}" role="button" class="outline contrast" style="padding: 5px 10px; font-size: 0.8rem;">登出</a>
+    
+    {% else %}
+      <a href="{{ url_for('login') }}" role="button" style="padding: 5px 15px;">登入</a>
+    {% endif %}
+    
+  </div>
+</nav>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}

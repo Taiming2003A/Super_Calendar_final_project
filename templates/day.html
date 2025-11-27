@@ -7,14 +7,13 @@
   <a href="{{ url_for('day_view', datestr=next_day.strftime('%Y-%m-%d')) }}">{{ next_day.strftime('%m/%d') }} →</a>
 </div>
 
-<!-- 當日飲食紀錄 -->
 <section>
   <h4>當日飲食紀錄</h4>
   <details open>
     <summary>新增餐點</summary>
     <form method="post" action="{{ url_for('diet_add') }}">
       <input type="hidden" name="date" value="{{ d.strftime('%Y-%m-%d') }}">
-      <div style="display:grid; grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr; gap:.5rem;">
+      <div style="display:grid; grid-template-columns: 1fr 2fr 1fr 1fr 1fr 1fr; gap:.5rem; align-items:flex-start;">
         <label>餐別
           <select name="meal_type" required>
             {% for val, label in MEAL_TYPES %}
@@ -22,20 +21,26 @@
             {% endfor %}
           </select>
         </label>
-        <label>食品名稱
-          <input name="food_name" placeholder="例如：雞胸便當" required>
+        
+        <label style="position: relative;">食品名稱
+          <input name="food_name" 
+                 id="food_name_input" 
+                 placeholder="例如：雞胸便當" 
+                 autocomplete="off"
+                 required>
+          <div id="suggestions_box"></div>
         </label>
         <label>熱量(kcal)
-          <input type="number" step="0.01" name="kcal" value="0">
+          <input type="number" step="0.01" name="kcal" value="0" id="kcal_input">
         </label>
         <label>蛋白質(g)
-          <input type="number" step="0.01" name="protein_g" value="0">
+          <input type="number" step="0.01" name="protein_g" value="0" id="protein_input">
         </label>
         <label>脂肪(g)
-          <input type="number" step="0.01" name="fat_g" value="0">
+          <input type="number" step="0.01" name="fat_g" value="0" id="fat_input">
         </label>
         <label>碳水(g)
-          <input type="number" step="0.01" name="carb_g" value="0">
+          <input type="number" step="0.01" name="carb_g" value="0" id="carb_input">
         </label>
       </div>
       <div style="margin-top:.5rem;"><button type="submit">新增餐點</button></div>
@@ -50,7 +55,6 @@
     <div>碳水：{{ '%.2f'|format(totals_diet.carb_g) }} g</div>
   </article>
 
-  <!-- 只顯示「全域營養目標」的視覺化 -->
   <section style="margin-top:1rem;">
     <h5>全域每日營養目標（從首頁設定）</h5>
 
@@ -63,7 +67,6 @@
         .nutri-diff { font-size:.8rem; color:#4b5563; }
       </style>
 
-      <!-- 熱量 -->
       <div class="nutri-row">
         <div class="nutri-label">
           <span>熱量</span>
@@ -79,7 +82,6 @@
         {% endif %}
       </div>
 
-      <!-- 碳水 -->
       <div class="nutri-row">
         <div class="nutri-label">
           <span>碳水</span>
@@ -95,7 +97,6 @@
         {% endif %}
       </div>
 
-      <!-- 蛋白質 -->
       <div class="nutri-row">
         <div class="nutri-label">
           <span>蛋白質</span>
@@ -111,7 +112,6 @@
         {% endif %}
       </div>
 
-      <!-- 脂肪 -->
       <div class="nutri-row">
         <div class="nutri-label">
           <span>脂肪</span>
@@ -166,9 +166,11 @@
 
 <hr>
 
-<!-- 當日重訓紀錄（跟之前一樣：PR、上次最大重量、總重量差值） -->
 <section>
-  <h4>當日重訓紀錄</h4>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h4>當日重訓紀錄</h4>
+    <a href="{{ url_for('rest_timer') }}" class="secondary outline" style="margin-bottom:1rem;">休息計時器</a>
+  </div>
 
   <details open>
     <summary>新增一組</summary>
@@ -259,7 +261,14 @@
       <h5 style="margin-top:1rem;">{{ part }}</h5>
       {% for ex_name, sets in ex_map.items() %}
         <details open style="margin:.25rem 0;">
-          <summary><strong>{{ ex_name }}</strong></summary>
+          <summary>
+            <strong>{{ ex_name }}</strong>
+            <a href="{{ url_for('progress', exercise_name=ex_name) }}" 
+               class="secondary" 
+               style="margin-left:.5rem; font-size: 0.8rem;">
+               📊 進步曲線
+            </a>
+          </summary>
           <table>
             <thead><tr><th>重量(kg)</th><th>次數</th><th>小計(kg)</th><th></th></tr></thead>
             <tbody>
@@ -291,7 +300,6 @@
 
 <hr>
 
-<!-- 當日行事項 -->
 <section>
   <h4>當日行事項</h4>
   <a href="{{ url_for('add', date=d.strftime('%Y-%m-%d')) }}" class="secondary">＋ 新增行事項</a>
@@ -315,6 +323,59 @@
       {% endfor %}
     </ul>
   {% endif %}
+</section>
+
+<script src="{{ url_for('static', filename='js/diet_suggest.js') }}"></script>
+
+<hr>
+
+<section>
+  <h4>當日日記</h4>
+
+  {% if diary_entries|length == 0 %}
+    <p class="muted">今天尚無日記。</p>
+  {% else %}
+    {% for entry in diary_entries %}
+      <article style="border:1px solid #ddd; padding:1rem; border-radius:8px; margin-bottom:1rem;">
+        <header>
+          <strong>{{ entry.title if entry.title else '(無標題)' }}</strong>
+          <small class="muted" style="margin-left:0.5rem;">( {{ entry.created_at.strftime('%H:%M:%S') }} )</small>
+        </header>
+        
+        <div class="trix-content">
+          {{ entry.content | safe }}
+        </div>
+        
+        <footer style="margin-top:0.5rem; display:flex; gap:0.5rem;">
+          <a href="{{ url_for('diary_edit', entry_id=entry.id) }}" 
+             role="button" 
+             class="secondary outline">編輯</a>
+          
+          <form action="{{ url_for('diary_delete', entry_id=entry.id) }}" method="POST" style="margin:0;">
+            <button type="submit" 
+                    class="secondary outline" 
+                    onclick="return confirm('確定要刪除這篇日記嗎？')">刪除</button>
+          </form>
+        </footer>
+      </article>
+    {% endfor %}
+  {% endif %}
+
+  <hr>
+
+  <details>
+    <summary>＋ 新增一篇日記</summary>
+    <form action="{{ url_for('diary_add', datestr=d.strftime('%Y-%m-%d')) }}" method="POST" style="margin-top:1rem;">
+      
+      <label for="diary_title_new">標題</label>
+      <input type="text" id="diary_title_new" name="title" placeholder="（可選）新日記標題">
+
+      <input id="diary_content_new" type="hidden" name="content">
+      <trix-editor input="diary_content_new"></trix-editor>
+
+      <button type="submit" style="margin-top:1rem;">新增日記</button>
+    </form>
+  </details>
 </section>
 
 {% endblock %}

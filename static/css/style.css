@@ -1,0 +1,42 @@
+/* ===== 飲食建議下拉選單 ===== */
+
+/* 建議列表的容器 */
+#suggestions_box {
+    display: none; /* 平常是隱藏的 */
+    position: absolute; /* 絕對定位，會顯示在 input 下方 */
+    background-color: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 100%;       /* 跟 input 一樣寬 */
+    max-height: 200px; /* 最高 200px，超過會捲動 */
+    overflow-y: auto;
+    z-index: 100;      /* 確保在最上層 */
+    margin-top: 2px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* 每一筆建議 */
+.suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+/* 滑鼠移上去的樣式 */
+.suggestion-item:hover {
+    background-color: #f0f0f0;
+}
+
+/* ===== [新] Trix 編輯器深色主題修正 ===== */
+
+/* * 1. 針對 Trix 工具列中所有 "圖示按鈕"
+ * (我們使用 [class*="..."] 來選取所有 class 包含 "trix-button--icon-" 的元素)
+ * 2. 使用 filter: invert(1) 將顏色反轉 (黑 → 白)
+ */
+trix-toolbar [class*="trix-button--icon-"] {
+  filter: invert(1) !important;
+}
+
+trix-toolbar .trix-button.trix-active {
+  background-color: transparent !important;
+}

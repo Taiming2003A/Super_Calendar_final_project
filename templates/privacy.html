@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<article>
+  <header><h2>隱私權政策 (Privacy Policy)</h2></header>
+  <p>我們非常重視您的隱私，以下說明我們如何處理您的資料：</p>
+  <p><strong>1. 資料蒐集：</strong><br>
+     當您透過 Google 或 LINE 登入時，我們僅會取得您的 Email、姓名與大頭貼，用於識別身分與建立帳號。</p>
+  <p><strong>2. 資料使用：</strong><br>
+     您的資料僅用於本服務之功能運作（如日記、行事曆），絕不會提供給第三方或用於廣告用途。</p>
+  <p><strong>3. 資料刪除：</strong><br>
+     若您希望刪除帳號與資料，請聯繫開發者。</p>
+  <footer class="muted">最後更新日期：2025/11/23</footer>
+</article>
+<p><a href="{{ url_for('login') }}">← 返回登入頁</a></p>
+{% endblock %}
