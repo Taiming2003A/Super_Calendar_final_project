@@ -69,7 +69,8 @@ line = oauth.register(
 )
 
 # ===== 常數 =====
-ITEM_TYPES = [("工作", "工作"), ("提醒", "提醒"), ("活動", "活動")]
+# [修改] 加入 "重要" 選項
+ITEM_TYPES = [("工作", "工作"), ("提醒", "提醒"), ("活動", "活動"), ("重要", "重要事項")]
 MEAL_TYPES = [("早餐", "早餐"), ("午餐", "午餐"), ("晚餐", "晚餐"), ("點心", "點心")]
 
 STRENGTH_CATEGORIES = {
@@ -925,30 +926,10 @@ def day_view(datestr):
         diary_entries=diary_entries,
     )
 
-@app.route("/important", methods=["GET", "POST"])
+@app.route("/important", methods=["GET"]) # [修改] 只剩下 GET
 @login_required
 def important():
-    if request.method == "POST":
-        title = (request.form.get("title") or "").strip()
-        date_str = request.form.get("date") or ""
-        description = (request.form.get("description") or "").strip()
-
-        if not title:
-            flash("標題不可為空", "warning")
-            return redirect(url_for("important"))
-
-        try:
-            d = datetime.strptime(date_str, "%Y-%m-%d").date()
-        except ValueError:
-            flash("日期格式錯誤", "warning")
-            return redirect(url_for("important"))
-
-        item = ImportantItem(user_id=current_user.id, title=title, date=d, description=description)
-        db.session.add(item)
-        db.session.commit()
-        flash("已新增重要事項", "success")
-        return redirect(url_for("important"))
-
+    # 這裡只負責顯示列表，新增功能已經移到 /add 了
     items = ImportantItem.query.filter(ImportantItem.user_id == current_user.id).order_by(ImportantItem.date.asc()).all()
     today = date.today()
     items_with_delta = []
@@ -1102,13 +1083,14 @@ def strength_delete(set_id):
 def add():
     if request.method == "POST":
         try:
+            # 1. 取得共同欄位
             title = request.form["title"].strip()
             item_type = request.form["item_type"]
             date_str = request.form["date"]
-            start_str = request.form["start_time"]
-            end_str = request.form["end_time"]
+            # 備註/內容 (對重要事項來說是 description，對行事曆來說是 content)
             content = request.form.get("content", "").strip()
 
+            # 2. 基本檢查
             if not title:
                 flash("標題不可為空", "warning")
                 return redirect(request.url)
@@ -1117,24 +1099,56 @@ def add():
                 return redirect(request.url)
 
             d = datetime.strptime(date_str, "%Y-%m-%d").date()
-            st = datetime.strptime(start_str, "%H:%M").time()
-            et = datetime.strptime(end_str, "%H:%M").time()
-            if et <= st:
-                flash("結束時間必須晚於開始時間", "warning")
-                return redirect(request.url)
 
-            db.session.add(CalendarItem(
-                user_id=current_user.id,
-                title=title,
-                item_type=item_type,
-                date=d,
-                start_time=st,
-                end_time=et,
-                content=content,
-            ))
-            db.session.commit()
-            flash("已新增項目", "success")
-            return redirect(url_for("index", year=d.year, month=d.month))
+            # ===== [分支邏輯] =====
+            
+            # 情境 A: 如果是 "重要事項"
+            if item_type == "重要":
+                # 重要事項不需要時間，所以我們忽略 start_time/end_time
+                item = ImportantItem(
+                    user_id=current_user.id,
+                    title=title,
+                    date=d,
+                    description=content  # 把表單的 content 存入 description
+                )
+                db.session.add(item)
+                db.session.commit()
+                flash("已新增重要事項", "success")
+                # 新增完後，可以導向 "重要事項列表" 或 "首頁"
+                return redirect(url_for("important"))
+
+            # 情境 B: 如果是 一般行事曆 (工作/提醒/活動)
+            else:
+                # 只有一般事項才需要檢查時間
+                start_str = request.form.get("start_time")
+                end_str = request.form.get("end_time")
+                
+                # 防呆：如果不是重要事項，時間必填
+                if not start_str or not end_str:
+                    flash("請填寫開始與結束時間", "warning")
+                    return redirect(request.url)
+
+                st = datetime.strptime(start_str, "%H:%M").time()
+                et = datetime.strptime(end_str, "%H:%M").time()
+
+                if et <= st:
+                    flash("結束時間必須晚於開始時間", "warning")
+                    return redirect(request.url)
+
+                # 存入 CalendarItem
+                db.session.add(CalendarItem(
+                    user_id=current_user.id,
+                    title=title,
+                    item_type=item_type,
+                    date=d,
+                    start_time=st,
+                    end_time=et,
+                    content=content,
+                ))
+                db.session.commit()
+                flash("已新增項目", "success")
+                return redirect(url_for("index", year=d.year, month=d.month))
+
         except Exception as e:
             flash(f"發生錯誤：{e}", "danger")
             return redirect(request.url)

@@ -29,11 +29,11 @@
       {% endif %}
     </label>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap: .75rem;">
+    <div id="time-fields-container" style="display:grid; grid-template-columns:1fr 1fr; gap: .75rem;">
       <label>
         開始時間
         {% if mode == "edit" %}
-          <input type="time" name="start_time" value="{{ item.start_time.strftime('%H:%M') }}" required>
+          <input type="time" name="start_time" value="{{ item.start_time.strftime('%H:%M') if item.start_time else '09:00' }}" required>
         {% else %}
           <input type="time" name="start_time" value="09:00" required>
         {% endif %}
@@ -42,7 +42,7 @@
       <label>
         結束時間
         {% if mode == "edit" %}
-          <input type="time" name="end_time" value="{{ item.end_time.strftime('%H:%M') }}" required>
+          <input type="time" name="end_time" value="{{ item.end_time.strftime('%H:%M') if item.end_time else '10:00' }}" required>
         {% else %}
           <input type="time" name="end_time" value="10:00" required>
         {% endif %}
@@ -59,9 +59,9 @@
     </label>
 
     <label>
-      內容
+      內容 / 備註
       {% if mode == "edit" %}
-        <textarea name="content" rows="5" placeholder="補充說明（可留空）">{{ item.content }}</textarea>
+        <textarea name="content" rows="5" placeholder="補充說明（可留空）">{{ item.content if item.content else (item.description if item.description else '') }}</textarea>
       {% else %}
         <textarea name="content" rows="5" placeholder="補充說明（可留空）"></textarea>
       {% endif %}
@@ -72,4 +72,39 @@
       <a class="secondary" href="{{ url_for('index') }}">取消</a>
     </div>
   </form>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const typeSelect = document.querySelector('select[name="item_type"]');
+        const timeFields = document.getElementById('time-fields-container'); // 現在這個抓得到了！
+        const startTimeInput = document.querySelector('input[name="start_time"]');
+        const endTimeInput = document.querySelector('input[name="end_time"]');
+
+        function updateForm() {
+            // 根據選單值隱藏/顯示時間
+            if (typeSelect.value === '重要') {
+                // 1. 隱藏
+                if(timeFields) timeFields.style.display = 'none';
+                
+                // 2. 移除必填 (避免瀏覽器擋住)
+                if(startTimeInput) startTimeInput.removeAttribute('required');
+                if(endTimeInput) endTimeInput.removeAttribute('required');
+            } else {
+                // 1. 顯示
+                if(timeFields) timeFields.style.display = 'grid';
+                
+                // 2. 加回必填
+                if(startTimeInput) startTimeInput.setAttribute('required', 'required');
+                if(endTimeInput) endTimeInput.setAttribute('required', 'required');
+            }
+        }
+
+        // 監聽選單改變
+        typeSelect.addEventListener('change', updateForm);
+        
+        // 初始化 (確保進入頁面時狀態正確)
+        updateForm();
+    });
+    </script>
+
 {% endblock %}
