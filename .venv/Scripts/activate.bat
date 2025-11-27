@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set VIRTUAL_ENV=D:\B11103214曾泰明_雲端服務應用導論_上課檔案\251030\.venv
+set VIRTUAL_ENV=d:\114-1課程資料夾\雲端服務應用導論\Super_Calendar_251030\.venv
 
 if not defined PROMPT set PROMPT=$P$G
 
