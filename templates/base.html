@@ -37,19 +37,23 @@
   </strong>
 
   <div class="nav-right">
-    
     {% if current_user.is_authenticated %}
       <span style="margin-right: 0.5rem; font-size: 0.9rem;">Hi, {{ current_user.name }}</span>
       
-      <a href="{{ url_for('week_view') }}">週檢視</a>
+      {% if request.endpoint == 'week_view' %}
+        <a href="{{ url_for('index') }}">月檢視</a>
+      {% else %}
+        <a href="{{ url_for('week_view') }}">週檢視</a>
+      {% endif %}
+      <!-- 
       <a href="{{ url_for('important') }}">重要事項</a>
-      
+      <a href="{{ url_for('weight_page') }}">體重紀錄</a> 
+      -->
       <a href="{{ url_for('logout') }}" role="button" class="outline contrast" style="padding: 5px 10px; font-size: 0.8rem;">登出</a>
     
     {% else %}
       <a href="{{ url_for('login') }}" role="button" style="padding: 5px 15px;">登入</a>
     {% endif %}
-    
   </div>
 </nav>
 

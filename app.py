@@ -1360,6 +1360,7 @@ def progress(exercise_name):
     )
 
 @app.route("/weight", methods=["GET", "POST"])
+@login_required
 def weight_page():
     """
     顯示體重列表、表單新增，以及顯示進步曲線（以 Chart.js 繪圖）。
@@ -1373,7 +1374,14 @@ def weight_page():
         try:
             d = datetime.strptime(date_str, "%Y-%m-%d").date()
             w = float(weight_str)
-            entry = WeightEntry(date=d, weight_kg=w)
+            
+            # [修正 1] 新增時必須補上 user_id
+            entry = WeightEntry(
+                user_id=current_user.id,  # <--- 關鍵！
+                date=d, 
+                weight_kg=w
+            )
+            
             db.session.add(entry)
             db.session.commit()
             flash("已新增體重紀錄", "success")
@@ -1384,9 +1392,11 @@ def weight_page():
     # GET: 讀出所有體重紀錄（按日期排序）並傳給 template
     rows = (
         WeightEntry.query
+        .filter_by(user_id=current_user.id) # [修正 2] 查詢時只抓自己的資料
         .order_by(WeightEntry.date.asc())
         .all()
     )
+    
     # template 偏好 arrays of strings/floats
     dates = [r.date.strftime("%Y-%m-%d") for r in rows]
     weights = [r.weight_kg for r in rows]
@@ -1397,11 +1407,13 @@ def weight_page():
         dates=dates,
         weights=weights,
     )
-
 @app.route("/weight/delete/<int:entry_id>", methods=["POST"])
+@login_required
 def weight_delete(entry_id):
-    w = WeightEntry.query.get_or_404(entry_id)
-    db.session.delete(w)
+    # [修正] 刪除時也要檢查 user_id，避免刪到別人的
+    entry = WeightEntry.query.filter_by(id=entry_id, user_id=current_user.id).first_or_404()
+    
+    db.session.delete(entry)
     db.session.commit()
     flash("已刪除體重紀錄", "info")
     return redirect(url_for("weight_page"))
