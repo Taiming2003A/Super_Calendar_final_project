@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h3>設定全域每日營養目標</h3>
+
+<!-- 1. 建議值計算器 -->
+<section style="margin-bottom:1.5rem;">
+  <h4>根據體重 / 性別 / 年齡 / 目標自動計算建議值</h4>
+
+  {% set ci = calc_input or {} %}
+
+  <form method="post" action="{{ url_for('nutrition_goal_page') }}">
+    <div style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:.75rem;">
+      <label>體重(kg)
+        <input type="number" step="0.1" min="1" name="calc_weight"
+               value="{{ ci.weight_kg or '' }}" required>
+      </label>
+      <label>性別
+        <select name="calc_sex">
+          <option value="male" {{ 'selected' if ci.sex == 'male' else '' }}>男</option>
+          <option value="female" {{ 'selected' if ci.sex == 'female' else '' }}>女</option>
+        </select>
+      </label>
+      <label>年齡
+        <input type="number" min="10" max="90" name="calc_age"
+               value="{{ ci.age or '' }}" required>
+      </label>
+      <label>目標
+        <select name="calc_goal">
+          <option value="lose" {{ 'selected' if ci.goal_type == 'lose' else '' }}>減脂</option>
+          <option value="maintain" {{ 'selected' if ci.goal_type == 'maintain' else '' }}>維持</option>
+          <option value="gain" {{ 'selected' if ci.goal_type == 'gain' else '' }}>增肌</option>
+        </select>
+      </label>
+    </div>
+
+    <div style="margin-top:.75rem;">
+      <button type="submit" name="action" value="calc">計算建議值</button>
+    </div>
+  </form>
+
+  {% if suggestion %}
+    <article style="margin-top:1rem; padding:.75rem; border-radius:.5rem; border:1px solid #e5e7eb; background:#f9fafb;">
+      <header><strong>建議每日攝取（參考值）</strong></header>
+      <div style="margin-top:.25rem;">
+        <div>估計維持熱量：約 {{ '%.0f'|format(suggestion.maintenance_kcal) }} kcal / 天</div>
+        <div>依目標調整後建議：<strong>{{ '%.0f'|format(suggestion.kcal) }} kcal / 天</strong></div>
+        <ul style="margin-top:.25rem; padding-left:1.2rem;">
+          <li>蛋白質：約 {{ '%.1f'|format(suggestion.protein_g) }} g / 天</li>
+          <li>脂肪：約 {{ '%.1f'|format(suggestion.fat_g) }} g / 天</li>
+          <li>碳水：約 {{ '%.1f'|format(suggestion.carb_g) }} g / 天</li>
+        </ul>
+        <p class="muted" style="margin-top:.25rem;">
+          ※ 以上為簡化估算，實際仍可依個人活動量、身體反應微調。你可以把這些數字作為下方「全域每日營養目標」的參考。
+        </p>
+      </div>
+    </article>
+  {% endif %}
+</section>
+
+<hr>
+
+<!-- 2. 真正會套用到每天的全域目標設定 -->
+<section style="margin-top:1.5rem;">
+  <h4>全域每日營養目標</h4>
+
+  <form method="post" action="{{ url_for('save_nutrition_goal') }}">
+    <div style="display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:.75rem;">
+      <label>熱量(kcal)
+        <input type="number" step="1" name="kcal_target"
+               value="{{ '%.0f'|format(nutrition_goal.kcal_target) if nutrition_goal else '' }}">
+      </label>
+      <label>碳水(g)
+        <input type="number" step="0.1" name="carb_target"
+               value="{{ '%.1f'|format(nutrition_goal.carb_target) if nutrition_goal else '' }}">
+      </label>
+      <label>蛋白質(g)
+        <input type="number" step="0.1" name="protein_target"
+               value="{{ '%.1f'|format(nutrition_goal.protein_target) if nutrition_goal else '' }}">
+      </label>
+      <label>脂肪(g)
+        <input type="number" step="0.1" name="fat_target"
+               value="{{ '%.1f'|format(nutrition_goal.fat_target) if nutrition_goal else '' }}">
+      </label>
+    </div>
+
+    <div style="margin-top:1rem;">
+      <button type="submit">儲存全域目標</button>
+      <a href="{{ url_for('index') }}" class="secondary">返回首頁</a>
+    </div>
+
+    <p class="muted" style="margin-top:.5rem;">
+      建議：先用上方「建議值計算器」算出一組數字，再依自己經驗做微調後填入本區，之後日檢視頁面的飲食統計都會用這組目標來顯示進度與差值。
+    </p>
+  </form>
+</section>
+
+{% endblock %}

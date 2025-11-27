@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+
+  <h3>編輯日記</h3>
+  <p>正在編輯 {{ entry.date.strftime('%Y-%m-%d') }} 的日記</p>
+
+  <form method="POST">
+    
+    <label for="diary_title">標題</label>
+    <input type="text" 
+           id="diary_title" 
+           name="title" 
+           value="{{ entry.title or '' }}">
+
+    <input id="diary_content" 
+           type="hidden" 
+           name="content" 
+           value="{{ (entry.content or '') | escape }}">
+
+    <trix-editor input="diary_content"></trix-editor>
+
+    <div style="display:flex; gap:1rem; margin-top:1rem; align-items:center;">
+        <button type="submit">儲存變更</button>
+        <a href="{{ url_for('day_view', datestr=entry.date.strftime('%Y-%m-%d')) }}">取消</a>
+    </div>
+  </form>
+
+{% endblock %}
